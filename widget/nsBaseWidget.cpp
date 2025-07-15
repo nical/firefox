@@ -1434,6 +1434,8 @@ nsBaseWidget::GetCompositorVsyncDispatcher() {
   return dispatcher.forget();
 }
 
+static int s_num_large_windows = 0;
+
 already_AddRefed<WebRenderLayerManager> nsBaseWidget::CreateCompositorSession(
     int aWidth, int aHeight, CompositorOptions* aOptionsOut) {
   MOZ_ASSERT(aOptionsOut);
@@ -1456,7 +1458,11 @@ already_AddRefed<WebRenderLayerManager> nsBaseWidget::CreateCompositorSession(
     bool enableSWWR = true;
     if (supportsAcceleration ||
         StaticPrefs::gfx_webrender_unaccelerated_widget_force()) {
-      enableSWWR = gfx::gfxVars::UseSoftwareWebRender();
+      enableSWWR = s_num_large_windows != 0 || gfx::gfxVars::UseSoftwareWebRender();
+    }
+    if (aWidth > 500 && aHeight > 500) {
+        s_num_large_windows += 1;
+        printf("Creating window %i %i, use swgl: %i\n", aWidth, aHeight, (int)enableSWWR);
     }
     bool enableAPZ = UseAPZ();
     CompositorOptions options(enableAPZ, enableSWWR);
