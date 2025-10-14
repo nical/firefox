@@ -1467,15 +1467,19 @@ already_AddRefed<WebRenderLayerManager> nsBaseWidget::CreateCompositorSession(
       return nullptr;
     }
 
+    static bool s_created_accelerated_window = false;
+
     // If widget type does not supports acceleration, we may be allowed to use
     // software WebRender instead.
     bool supportsAcceleration = WidgetTypeSupportsAcceleration();
     bool enableSWWR = true;
     if (supportsAcceleration ||
         StaticPrefs::gfx_webrender_unaccelerated_widget_force()) {
-      enableSWWR = gfx::gfxVars::UseSoftwareWebRender();
+      enableSWWR = gfx::gfxVars::UseSoftwareWebRender() || s_created_accelerated_window;
+      s_created_accelerated_window |= !enableSWWR;
     }
     bool enableAPZ = UseAPZ();
+    printf(" -- CreateCompositorSesstion: SWGL: %i\n", (int)enableSWWR);
     CompositorOptions options(enableAPZ, enableSWWR);
 
 #ifdef XP_WIN
