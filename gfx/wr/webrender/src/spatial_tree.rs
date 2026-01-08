@@ -717,6 +717,13 @@ pub enum CoordinateSpaceMapping<Src, Dst> {
 }
 
 impl<Src, Dst> CoordinateSpaceMapping<Src, Dst> {
+    pub fn is_local(&self) -> bool {
+        match self {
+            Self::Local => true,
+            _ => false,
+        }
+    }
+
     pub fn into_transform(self) -> Transform3D<f32, Src, Dst> {
         match self {
             CoordinateSpaceMapping::Local => Transform3D::identity(),
@@ -788,6 +795,14 @@ impl<Src, Dst> CoordinateSpaceMapping<Src, Dst> {
                 ScaleOffset::new(transform.m11, transform.m22, transform.m41, transform.m42)
             }
         })
+    }
+
+    pub fn cast_unit<NewSrc, NewDst>(&self) -> CoordinateSpaceMapping<NewSrc, NewDst> {
+        match self {
+            Self::Local => CoordinateSpaceMapping::Local,
+            Self::ScaleOffset(transfrom) => CoordinateSpaceMapping::ScaleOffset(*transfrom),
+            Self::Transform(transform) => CoordinateSpaceMapping::Transform(transform.cast_unit())
+        }
     }
 }
 

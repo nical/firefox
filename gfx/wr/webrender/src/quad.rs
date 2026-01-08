@@ -77,6 +77,224 @@ pub enum QuadRenderStrategy {
     }
 }
 
+pub fn prepare_quad_v2(
+    pattern_builder: &dyn PatternBuilder,
+    local_rect: &LayoutRect,
+    prim_instance_index: PrimitiveInstanceIndex,
+    cache_key: &Option<QuadCacheKey>,
+    prim_spatial_node_index: SpatialNodeIndex,
+    clip_chain: &ClipChainInstance,
+    device_pixel_scale: DevicePixelScale,
+
+    frame_context: &FrameBuildingContext,
+    pic_context: &PictureContext,
+    targets: &[CommandBufferIndex],
+    interned_clips: &DataStore<ClipIntern>,
+
+    frame_state: &mut FrameBuildingState,
+    pic_state: &mut PictureState,
+    scratch: &mut PrimitiveScratchBuffer,
+) {
+    let pattern_ctx = PatternBuilderContext {
+        scene_properties: frame_context.scene_properties,
+        spatial_tree: frame_context.spatial_tree,
+        fb_config: frame_context.fb_config,
+    };
+
+    let mut pattern_state = PatternBuilderState {
+        frame_gpu_data: frame_state.frame_gpu_data,
+        rg_builder: frame_state.rg_builder,
+        clip_store: frame_state.clip_store,
+    };
+
+
+    let shared_pattern = if pattern_builder.use_shared_pattern() {
+        Some(pattern_builder.build(
+            None,
+            &pattern_ctx,
+            &mut pattern_state,
+        ))
+    } else {
+        None
+    };
+
+    let layout_to_raster = pattern_ctx.spatial_tree.get_relative_transform(
+        prim_spatial_node_index,
+        pic_context.raster_spatial_node_index,
+    ).cast_unit::<layout_to_raster, layout_to_raster>();
+
+    if !prim_is_2d_scale_translation {
+        println!("TODO: unimplemented non-axis-aligned quad");
+        return;
+    }
+
+    let prim_is_2d_scale_translation = layout_to_raster.is_2d_scale_translation();
+    let prim_is_2d_axis_aligned = layout_to_raster.is_2d_axis_aligned();
+    let can_use_nine_patch = prim_is_2d_scale_translation && pattern_builder.can_use_nine_patch();
+
+    // This could move back into preapre_quad_impl if it took the tile's
+    // coverage rect into account rather than the whole primitive's, but
+    // for now it does the latter so we might as well not do the work
+    // multiple times.
+    let strategy = match cache_key {
+        Some(_) => QuadRenderStrategy::Indirect,
+        None => get_prim_render_strategy(
+            prim_spatial_node_index,
+            clip_chain,
+            pattern_state.clip_store,
+            interned_clips,
+            can_use_nine_patch,
+            pattern_ctx.spatial_tree,
+        ),
+    };
+
+    let mut quad_flags = QuadFlags::empty();
+
+    // Only use AA edge instances if the primitive is large enough to require it
+    let prim_size = local_rect.size();
+    if prim_size.width > MIN_AA_SEGMENTS_SIZE && prim_size.height > MIN_AA_SEGMENTS_SIZE {
+        quad_flags |= QuadFlags::USE_AA_SEGMENTS;
+    }
+
+    let needs_scissor = !prim_is_2d_scale_translation;
+    if !needs_scissor {
+        quad_flags |= QuadFlags::APPLY_RENDER_TASK_CLIP;
+    }
+
+    // TODO(gw): For now, we don't select per-edge AA at all if the primitive
+    //           has a 2d transform, which matches existing behavior. However,
+    //           as a follow up, we can now easily check if we have a 2d-aligned
+    //           primitive on a subpixel boundary, and enable AA along those edge(s).
+    let aa_flags = if prim_is_2d_axis_aligned {
+        EdgeAaSegmentMask::empty()
+    } else {
+        EdgeAaSegmentMask::all()
+    };
+
+    let raster_rect = layout_to_raster.map(&local_rect).unwrap();
+    let device_rect = raster_rect * device_pixel_scale;
+
+    match strategy {
+        QuadRenderStrategy::Direct => {
+            let pattern = shared_pattern.cloned().unwrap_or_else(|| {
+                pattern_builder.build(None, &ctx, &mut pattern_state)
+            });
+
+            if pattern.is_opaque {
+                quad_flags |= QuadFlags::IS_OPAQUE;
+            }
+
+            let raster_clip_rect = layout_to_raster.map(&clip_chain.local_clip_rect).unwrap();
+            let device_clip_rect = raster_clip_rect * device_pixel_scale;
+
+            let local_to_device = map_prim_to_raster.as_2d_scale_offset()
+                .unwrap()
+                .then_scale(device_pixel_scale.0);
+            let device_to_local = local_to_device.inverse();
+
+
+            let main_prim_address = write_prim_blocks(
+                &mut pattern_state.frame_gpu_data.f32,
+                device_rect.to_untyped(),
+                device_clip_rect.to_untyped(),
+                pattern.base_color,
+                pattern.texture_input.task_id,
+                &[],
+                device_to_local,
+            );
+
+            // Render the primitive as a single instance. Coordinates are provided to the
+            // shader in layout space.
+            frame_state.push_prim(
+                &PrimitiveCommand::quad(
+                    pattern.kind,
+                    pattern.shader_input,
+                    pattern.texture_input.task_id,
+                    prim_instance_index,
+                    main_prim_address,
+                    transform_id,
+                    quad_flags,
+                    aa_flags,
+                ),
+                prim_spatial_node_index,
+                targets,
+            );
+
+            // If the pattern samples from a texture, add it as a dependency
+            // of the surface we're drawing directly on to.
+            if pattern.texture_input.task_id != RenderTaskId::INVALID {
+                frame_state
+                    .surface_builder
+                    .add_child_render_task(pattern.texture_input.task_id, frame_state.rg_builder);
+            }
+        }
+        QuadRenderStrategy::Indirect => {
+            let pattern = shared_pattern.cloned().unwrap_or_else(|| {
+                pattern_builder.build(None, &ctx, &mut pattern_state)
+            });
+
+            if pattern.is_opaque {
+                quad_flags |= QuadFlags::IS_OPAQUE;
+            }
+
+            let main_prim_address = write_prim_blocks(
+                &mut frame_state.frame_gpu_data.f32,
+                local_rect.to_untyped(),
+                clip_chain.local_clip_rect.to_untyped(),
+                pattern.base_color,
+                pattern.texture_input.task_id,
+                &[],
+                ScaleOffset::identity(),
+            );
+
+            let cache_key = cache_key.as_ref().map(|key| {
+                RenderTaskCacheKey {
+                    size: clipped_surface_rect.size(),
+                    kind: RenderTaskCacheKeyKind::Quad(key.clone()),
+                }
+            });
+
+            // Render the primtive as a single instance in a render task, apply a mask
+            // and composite it in the current picture.
+            // The coordinates are provided to the shaders:
+            //  - in layout space for the render task,
+            //  - in device space for the instance that draw into the destination picture.
+            let task_id = add_render_task_with_mask(
+                &pattern,
+                clipped_surface_rect.size(),
+                clipped_surface_rect.min.to_f32(),
+                clip_chain.clips_range,
+                prim_spatial_node_index,
+                pic_context.raster_spatial_node_index,
+                main_prim_address,
+                transform_id,
+                aa_flags,
+                quad_flags,
+                device_pixel_scale,
+                needs_scissor,
+                cache_key.as_ref(),
+                frame_state.resource_cache,
+                frame_state.rg_builder,
+                &mut frame_state.frame_gpu_data.f32,
+                &mut frame_state.surface_builder,
+            );
+
+            let rect = clipped_surface_rect.to_f32().to_untyped();
+            add_composite_prim(
+                pattern_builder.get_base_color(&ctx),
+                prim_instance_index,
+                rect,
+                frame_state,
+                targets,
+                &[QuadSegment { rect, task_id }],
+            );
+        }
+        _ => {
+            println!("TODO: unimplemented quad strategy {strategy:?}");
+        }
+    }
+}
+
 pub fn prepare_quad(
     pattern_builder: &dyn PatternBuilder,
     local_rect: &LayoutRect,
