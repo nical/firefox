@@ -733,13 +733,48 @@ fn prepare_interned_prim_for_render(
             profile_scope!("LinearGradient");
             let prim_data = &mut data_stores.linear_grad[*data_handle];
             if !*use_legacy_path {
+                // For SWGL, evaluating the gradient is faster than reading from the texture cache.
+                let mut should_cache = !frame_context.fb_config.is_software;
+                if should_cache {
+                    let surface = &frame_state.surfaces[pic_context.surface_index.0];
+                    let clipped_surface_rect = surface.get_surface_rect(
+                        &prim_instance.vis.clip_chain.pic_coverage_rect,
+                        frame_context.spatial_tree,
+                    );
+
+                    // On the GPU, caching will probably not make a huge difference in most
+                    // cases, other than potentially helping with batching, so focus on caching
+                    // small-ish gradients that can easily fit in the texture cache.
+                    // On the other hand, it's not worth going through the trouble of caching tiny
+                    // gradients.
+                    // TODO: We should stop caching when the cache is close to full.
+                    should_cache = if let Some(rect) = clipped_surface_rect {
+                        rect.width() < 512 && rect.height() < 512 && rect.area() >= 32
+                    } else {
+                        false
+                    };
+                }
+
+                let cache_key = if should_cache {
+                    quad::cache_key(
+                        data_handle.uid(),
+                        prim_spatial_node_index,
+                        frame_context.spatial_tree,
+                        &prim_instance.vis.clip_chain,
+                        frame_state.clip_store,
+                        &data_stores.clip,
+                    )
+                } else {
+                    None
+                };
+
                 quad::prepare_repeatable_quad(
                     prim_data,
                     &prim_data.common.prim_rect,
                     prim_data.stretch_size,
                     prim_data.tile_spacing,
                     prim_instance_index,
-                    &None,
+                    &cache_key,
                     prim_spatial_node_index,
                     &prim_instance.vis.clip_chain,
                     device_pixel_scale,
@@ -915,7 +950,7 @@ fn prepare_interned_prim_for_render(
                     );
 
                     should_cache = if let Some(rect) = clipped_surface_rect {
-                        rect.width() < 4096 && rect.height() < 4096
+                        rect.width() < 4096 && rect.height() < 4096 && rect.area() >= 32
                     } else {
                         false
                     };
