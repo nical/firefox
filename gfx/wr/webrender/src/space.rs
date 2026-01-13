@@ -17,7 +17,7 @@ use crate::util::{MatrixHelpers, ScaleOffset, RectHelpers, PointHelpers};
 
 #[derive(Debug, Clone)]
 pub struct SpaceMapper<F, T> {
-    kind: CoordinateSpaceMapping<F, T>,
+    pub kind: CoordinateSpaceMapping<F, T>,
     pub ref_spatial_node_index: SpatialNodeIndex,
     pub current_target_spatial_node_index: SpatialNodeIndex,
     pub bounds: Box2D<f32, T>,
