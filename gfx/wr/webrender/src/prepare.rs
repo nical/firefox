@@ -11,7 +11,7 @@ use api::{BoxShadowClipMode, BorderStyle, ClipMode};
 use api::units::*;
 use euclid::Scale;
 use smallvec::SmallVec;
-use crate::composite::CompositorSurfaceKind;
+use crate::{composite::CompositorSurfaceKind, segment::EdgeAaSegmentMask};
 use crate::command_buffer::{CommandBufferIndex, PrimitiveCommand};
 use crate::image_tiling::{self, Repetition};
 use crate::border::{get_max_scale_for_border, build_border_instances};
@@ -361,11 +361,12 @@ fn prepare_interned_prim_for_render(
         PrimitiveInstanceKind::BoxShadow { data_handle } => {
             let prim_data = &mut data_stores.box_shadow[*data_handle];
 
-            quad::prepare_quad(
+            quad::prepare_quad_v2(
                 prim_data,
                 &prim_data.kind.outer_shadow_rect,
-                prim_instance_index,
+                &prim_data.kind.outer_shadow_rect,
                 &None,
+                prim_instance_index,
                 prim_spatial_node_index,
                 &prim_instance.vis.clip_chain,
                 device_pixel_scale,
@@ -654,11 +655,12 @@ fn prepare_interned_prim_for_render(
             } else {
                 let prim_data = &data_stores.prim[*data_handle];
 
-                quad::prepare_quad(
+                quad::prepare_quad_v2(
                     prim_data,
                     &prim_data.common.prim_rect,
-                    prim_instance_index,
+                    &prim_data.common.prim_rect,
                     &None,
+                    prim_instance_index,
                     prim_spatial_node_index,
                     &prim_instance.vis.clip_chain,
                     device_pixel_scale,

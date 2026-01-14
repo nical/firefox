@@ -864,15 +864,33 @@ impl PicturePrimitive {
             parent_subpixel_mode
         );
 
+        let surface = &frame_state.surfaces[surface_index.0];
+        let raster_spatial_node_index = surface.raster_spatial_node_index;
+
+        let map_pic_to_raster = SpaceMapper::new_with_target(
+            raster_spatial_node_index,
+            surface_spatial_node_index,
+            RasterRect::max_rect(),
+            frame_context.spatial_tree,
+        );
+
+        let clipping_rect = map_pic_to_raster
+            .map(&surface.clipping_rect)
+            .unwrap_or(RasterRect::zero());
+        let scale = Scale::new(surface.device_pixel_scale.0);
+        let clipping_rect = scale.transform_box2d(&clipping_rect);
+
         let context = PictureContext {
             pic_index,
-            raster_spatial_node_index: frame_state.surfaces[surface_index.0].raster_spatial_node_index,
+            raster_spatial_node_index,
             // TODO: switch the visibility spatial node from the root to raster space.
             visibility_spatial_node_index: frame_context.root_spatial_node_index,
             surface_spatial_node_index,
             surface_index,
             dirty_region_count,
             subpixel_mode,
+            clipping_rect,
+            map_pic_to_raster,
         };
 
         let prim_list = mem::replace(&mut self.prim_list, PrimitiveList::empty());

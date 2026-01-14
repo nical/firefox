@@ -245,6 +245,8 @@ pub struct PictureContext {
     pub surface_index: SurfaceIndex,
     pub dirty_region_count: usize,
     pub subpixel_mode: SubpixelMode,
+    pub clipping_rect: DeviceRect,
+    pub map_pic_to_raster: SpaceMapper<PicturePixel, RasterPixel>,
 }
 
 /// Mutable state of a picture that gets modified when
