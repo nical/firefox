@@ -364,7 +364,6 @@ fn prepare_interned_prim_for_render(
             quad::prepare_quad_v2(
                 prim_data,
                 &prim_data.kind.outer_shadow_rect,
-                &prim_data.kind.outer_shadow_rect,
                 &None,
                 prim_instance_index,
                 prim_spatial_node_index,
@@ -657,7 +656,6 @@ fn prepare_interned_prim_for_render(
 
                 quad::prepare_quad_v2(
                     prim_data,
-                    &prim_data.common.prim_rect,
                     &prim_data.common.prim_rect,
                     &None,
                     prim_instance_index,

@@ -98,7 +98,6 @@ pub struct SurfaceContext {
 pub fn prepare_quad_v2(
     pattern_builder: &dyn PatternBuilder,
     local_rect: &LayoutRect,
-    local_clip_rect: &LayoutRect,
 
     cache_key: &Option<QuadCacheKey>,
     prim_instance_index: PrimitiveInstanceIndex,
@@ -115,7 +114,6 @@ pub fn prepare_quad_v2(
     pic_state: &mut PictureState,
     scratch: &mut PrimitiveScratchBuffer,
 ) {
-    let local_clip_rect = local_clip_rect.intersection_unchecked(&clip_chain.local_clip_rect);
     let device_pixel_scale: Scale<f32, RasterPixel, DevicePixel> = Scale::new(device_pixel_scale.0);
 
     let pattern_ctx = PatternBuilderContext {
@@ -195,14 +193,14 @@ pub fn prepare_quad_v2(
 
     // The quad geometry (either in local or device space)
     let mut quad_rect = local_rect.to_untyped();
-    let mut quad_clip_rect = local_clip_rect.to_untyped();
+    let mut quad_clip_rect = clip_chain.local_clip_rect.to_untyped();
 
     if space == QuadCoordinateSpace::Device {
         let raster_rect = prim_to_raster.map(&local_rect).unwrap();
         let device_rect = raster_rect * device_pixel_scale;
         quad_rect = device_rect.to_untyped();
 
-        let raster_clip_rect = prim_to_raster.map(&local_clip_rect).unwrap();
+        let raster_clip_rect = prim_to_raster.map(&clip_chain.local_clip_rect).unwrap();
         let device_clip_rect = raster_clip_rect * device_pixel_scale;
         quad_clip_rect = device_clip_rect.to_untyped();
 
@@ -950,7 +948,6 @@ pub fn prepare_repeatable_quad(
     prepare_quad_v2(
         pattern_builder,
         local_rect,
-        local_rect, // TODO(nical)
         cache_key,
         prim_instance_index,
         prim_spatial_node_index,
