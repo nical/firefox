@@ -462,6 +462,16 @@ impl<T: MallocSizeOf, Src, Dst> MallocSizeOf for euclid::Transform3D<T, Src, Dst
 }
 
 #[cfg(feature = "euclid")]
+impl<T: MallocSizeOf, Src, Dst> MallocSizeOf for euclid::ScaleOffset2D<T, Src, Dst> {
+    fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
+        self.sx.size_of(ops) +
+            self.sy.size_of(ops) +
+            self.tx.size_of(ops) +
+            self.ty.size_of(ops)
+    }
+}
+
+#[cfg(feature = "euclid")]
 impl<T: MallocSizeOf, U> MallocSizeOf for euclid::Vector2D<T, U> {
     fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
         self.x.size_of(ops) + self.y.size_of(ops)

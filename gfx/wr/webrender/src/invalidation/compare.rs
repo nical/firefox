@@ -84,10 +84,10 @@ impl<Src, Dst> From<CoordinateSpaceMapping<Src, Dst>> for TransformKey {
             CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => {
                 TransformKey::ScaleOffset {
                     so: ScaleOffsetKey {
-                        sx: scale_offset.scale.x,
-                        sy: scale_offset.scale.y,
-                        tx: scale_offset.offset.x,
-                        ty: scale_offset.offset.y,
+                        sx: scale_offset.sx,
+                        sy: scale_offset.sy,
+                        tx: scale_offset.tx,
+                        ty: scale_offset.ty,
                     }
                 }
             }

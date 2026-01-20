@@ -4,14 +4,17 @@
 
 use api::BorderRadius;
 use api::units::*;
+use euclid::UnknownUnit;
 use euclid::{Point2D, Rect, Box2D, Size2D, Vector2D, point2, point3};
-use euclid::{default, Transform2D, Transform3D, Scale, approxeq::ApproxEq};
+use euclid::{Transform2D, Transform3D, Scale};
 use plane_split::{Clipper, Polygon};
 use std::{i32, f32, fmt, ptr};
 use std::borrow::Cow;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::mem::replace;
+
+pub type ScaleOffset = euclid::ScaleOffset2D<f32, UnknownUnit, UnknownUnit>;
 
 use crate::internal_types::FrameVec;
 
@@ -108,296 +111,141 @@ impl<T> VecHelper<T> for Vec<T> {
     }
 }
 
-// Represents an optimized transform where there is only
-// a scale and translation (which are guaranteed to maintain
-// an axis align rectangle under transformation). The
-// scaling is applied first, followed by the translation.
-// TODO(gw): We should try and incorporate F <-> T units here,
-//           but it's a bit tricky to do that now with the
-//           way the current spatial tree works.
-#[repr(C)]
-#[derive(Debug, Clone, Copy, MallocSizeOf, PartialEq)]
-#[cfg_attr(feature = "capture", derive(Serialize))]
-#[cfg_attr(feature = "replay", derive(Deserialize))]
-pub struct ScaleOffset {
-    pub scale: euclid::Vector2D<f32, euclid::UnknownUnit>,
-    pub offset: euclid::Vector2D<f32, euclid::UnknownUnit>,
+pub trait ScaleOffsetExt {
+    fn map_size<F, T>(&self, size: &Size2D<f32, F>) -> Size2D<f32, T>;
 }
 
-impl ScaleOffset {
-    pub fn new(sx: f32, sy: f32, tx: f32, ty: f32) -> Self {
-        ScaleOffset {
-            scale: Vector2D::new(sx, sy),
-            offset: Vector2D::new(tx, ty),
-        }
-    }
-
-    pub fn identity() -> Self {
-        ScaleOffset {
-            scale: Vector2D::new(1.0, 1.0),
-            offset: Vector2D::zero(),
-        }
-    }
-
-    // Construct a ScaleOffset from a transform. Returns
-    // None if the matrix is not a pure scale / translation.
-    pub fn from_transform<F, T>(
-        m: &Transform3D<f32, F, T>,
-    ) -> Option<ScaleOffset> {
-
-        // To check that we have a pure scale / translation:
-        // Every field must match an identity matrix, except:
-        //  - Any value present in tx,ty
-        //  - Any value present in sx,sy
-
-        if m.m12.abs() > NEARLY_ZERO ||
-           m.m13.abs() > NEARLY_ZERO ||
-           m.m14.abs() > NEARLY_ZERO ||
-           m.m21.abs() > NEARLY_ZERO ||
-           m.m23.abs() > NEARLY_ZERO ||
-           m.m24.abs() > NEARLY_ZERO ||
-           m.m31.abs() > NEARLY_ZERO ||
-           m.m32.abs() > NEARLY_ZERO ||
-           (m.m33 - 1.0).abs() > NEARLY_ZERO ||
-           m.m34.abs() > NEARLY_ZERO ||
-           m.m43.abs() > NEARLY_ZERO ||
-           (m.m44 - 1.0).abs() > NEARLY_ZERO {
-            return None;
-        }
-
-        Some(ScaleOffset {
-            scale: Vector2D::new(m.m11, m.m22),
-            offset: Vector2D::new(m.m41, m.m42),
-        })
-    }
-
-    pub fn from_offset(offset: default::Vector2D<f32>) -> Self {
-        ScaleOffset {
-            scale: Vector2D::new(1.0, 1.0),
-            offset,
-        }
-    }
-
-    pub fn from_scale(scale: default::Vector2D<f32>) -> Self {
-        ScaleOffset {
-            scale,
-            offset: Vector2D::new(0.0, 0.0),
-        }
-    }
-
-    pub fn inverse(&self) -> Self {
-        // If either of the scale factors is 0, inverse also has scale 0
-        // TODO(gw): Consider making this return Option<Self> in future
-        //           so that callers can detect and handle when inverse
-        //           fails here.
-        if self.scale.x.approx_eq(&0.0) || self.scale.y.approx_eq(&0.0) {
-            return ScaleOffset::new(0.0, 0.0, 0.0, 0.0);
-        }
-
-        ScaleOffset {
-            scale: Vector2D::new(
-                1.0 / self.scale.x,
-                1.0 / self.scale.y,
-            ),
-            offset: Vector2D::new(
-                -self.offset.x / self.scale.x,
-                -self.offset.y / self.scale.y,
-            ),
-        }
-    }
-
-    pub fn pre_offset(&self, offset: default::Vector2D<f32>) -> Self {
-        self.pre_transform(
-            &ScaleOffset {
-                scale: Vector2D::new(1.0, 1.0),
-                offset,
-            }
-        )
-    }
-
-    pub fn pre_scale(&self, scale: f32) -> Self {
-        ScaleOffset {
-            scale: self.scale * scale,
-            offset: self.offset,
-        }
-    }
-
-    pub fn then_scale(&self, scale: f32) -> Self {
-        ScaleOffset {
-            scale: self.scale * scale,
-            offset: self.offset * scale,
-        }
-    }
-
-    /// Produce a ScaleOffset that includes both self and other.
-    /// The 'self' ScaleOffset is applied after `other`.
-    /// This is equivalent to `Transform3D::pre_transform`.
-    pub fn pre_transform(&self, other: &ScaleOffset) -> Self {
-        ScaleOffset {
-            scale: Vector2D::new(
-                self.scale.x * other.scale.x,
-                self.scale.y * other.scale.y,
-            ),
-            offset: Vector2D::new(
-                self.offset.x + self.scale.x * other.offset.x,
-                self.offset.y + self.scale.y * other.offset.y,
-            ),
-        }
-    }
-
-    /// Produce a ScaleOffset that includes both self and other.
-    /// The 'other' ScaleOffset is applied after `self`.
-    /// This is equivalent to `Transform3D::then`.
-    #[allow(unused)]
-    pub fn then(&self, other: &ScaleOffset) -> Self {
-        ScaleOffset {
-            scale: Vector2D::new(
-                self.scale.x * other.scale.x,
-                self.scale.y * other.scale.y,
-            ),
-            offset: Vector2D::new(
-                other.scale.x * self.offset.x + other.offset.x,
-                other.scale.y * self.offset.y + other.offset.y,
-            ),
-        }
-    }
-
-
-    pub fn map_rect<F, T>(&self, rect: &Box2D<f32, F>) -> Box2D<f32, T> {
-        // TODO(gw): The logic below can return an unexpected result if the supplied
-        //           rect is invalid (has size < 0). Since Gecko currently supplied
-        //           invalid rects in some cases, adding a max(0) here ensures that
-        //           mapping an invalid rect retains the property that rect.is_empty()
-        //           will return true (the mapped rect output will have size 0 instead
-        //           of a negative size). In future we could catch / assert / fix
-        //           these invalid rects earlier, and assert here instead.
-
-        let w = rect.width().max(0.0);
-        let h = rect.height().max(0.0);
-
-        let mut x0 = rect.min.x * self.scale.x + self.offset.x;
-        let mut y0 = rect.min.y * self.scale.y + self.offset.y;
-
-        let mut sx = w * self.scale.x;
-        let mut sy = h * self.scale.y;
-        // Handle negative scale. Previously, branchless float math was used to find the
-        // min / max vertices and size. However, that sequence of operations was producind
-        // additional floating point accuracy on android emulator builds, causing one test
-        // to fail an assert. Instead, we retain the same math as previously, and adjust
-        // the origin / size if required.
-
-        if self.scale.x < 0.0 {
-            x0 += sx;
-            sx = -sx;
-        }
-        if self.scale.y < 0.0 {
-            y0 += sy;
-            sy = -sy;
-        }
-
-        Box2D::from_origin_and_size(
-            Point2D::new(x0, y0),
-            Size2D::new(sx, sy),
-        )
-    }
-
-    pub fn unmap_rect<F, T>(&self, rect: &Box2D<f32, F>) -> Box2D<f32, T> {
-        // TODO(gw): The logic below can return an unexpected result if the supplied
-        //           rect is invalid (has size < 0). Since Gecko currently supplied
-        //           invalid rects in some cases, adding a max(0) here ensures that
-        //           mapping an invalid rect retains the property that rect.is_empty()
-        //           will return true (the mapped rect output will have size 0 instead
-        //           of a negative size). In future we could catch / assert / fix
-        //           these invalid rects earlier, and assert here instead.
-
-        let w = rect.width().max(0.0);
-        let h = rect.height().max(0.0);
-
-        let mut x0 = (rect.min.x - self.offset.x) / self.scale.x;
-        let mut y0 = (rect.min.y - self.offset.y) / self.scale.y;
-
-        let mut sx = w / self.scale.x;
-        let mut sy = h / self.scale.y;
-
-        // Handle negative scale. Previously, branchless float math was used to find the
-        // min / max vertices and size. However, that sequence of operations was producind
-        // additional floating point accuracy on android emulator builds, causing one test
-        // to fail an assert. Instead, we retain the same math as previously, and adjust
-        // the origin / size if required.
-
-        if self.scale.x < 0.0 {
-            x0 += sx;
-            sx = -sx;
-        }
-        if self.scale.y < 0.0 {
-            y0 += sy;
-            sy = -sy;
-        }
-
-        Box2D::from_origin_and_size(
-            Point2D::new(x0, y0),
-            Size2D::new(sx, sy),
-        )
-    }
-
-    pub fn map_vector<F, T>(&self, vector: &Vector2D<f32, F>) -> Vector2D<f32, T> {
-        Vector2D::new(
-            vector.x * self.scale.x,
-            vector.y * self.scale.y,
-        )
-    }
-
-    pub fn map_size<F, T>(&self, size: &Size2D<f32, F>) -> Size2D<f32, T> {
+impl ScaleOffsetExt for ScaleOffset {
+    fn map_size<F, T>(&self, size: &Size2D<f32, F>) -> Size2D<f32, T> {
         Size2D::new(
-            size.width * self.scale.x,
-            size.height * self.scale.y,
+            size.width * self.sx,
+            size.height * self.sy,
         )
     }
+}
 
-    pub fn unmap_vector<F, T>(&self, vector: &Vector2D<f32, F>) -> Vector2D<f32, T> {
-        Vector2D::new(
-            vector.x / self.scale.x,
-            vector.y / self.scale.y,
-        )
+
+// Construct a ScaleOffset from a transform. Returns
+// None if the matrix is not a pure scale / translation.
+pub fn scale_offset_from_transform<F, T>(
+    m: &Transform3D<f32, F, T>,
+) -> Option<ScaleOffset> {
+
+    // To check that we have a pure scale / translation:
+    // Every field must match an identity matrix, except:
+    //  - Any value present in tx,ty
+    //  - Any value present in sx,sy
+
+    if m.m12.abs() > NEARLY_ZERO ||
+       m.m13.abs() > NEARLY_ZERO ||
+       m.m14.abs() > NEARLY_ZERO ||
+       m.m21.abs() > NEARLY_ZERO ||
+       m.m23.abs() > NEARLY_ZERO ||
+       m.m24.abs() > NEARLY_ZERO ||
+       m.m31.abs() > NEARLY_ZERO ||
+       m.m32.abs() > NEARLY_ZERO ||
+       (m.m33 - 1.0).abs() > NEARLY_ZERO ||
+       m.m34.abs() > NEARLY_ZERO ||
+       m.m43.abs() > NEARLY_ZERO ||
+       (m.m44 - 1.0).abs() > NEARLY_ZERO {
+        return None;
     }
 
-    pub fn map_point<F, T>(&self, point: &Point2D<f32, F>) -> Point2D<f32, T> {
-        Point2D::new(
-            point.x * self.scale.x + self.offset.x,
-            point.y * self.scale.y + self.offset.y,
-        )
+    Some(ScaleOffset::new(m.m11, m.m22, m.m41, m.m42))
+}
+
+pub fn scale_offset_unmap_rect<F, T>(tx: &ScaleOffset, rect: &Box2D<f32, F>) -> Box2D<f32, T> {
+    // TODO(gw): The logic below can return an unexpected result if the supplied
+    //           rect is invalid (has size < 0). Since Gecko currently supplied
+    //           invalid rects in some cases, adding a max(0) here ensures that
+    //           mapping an invalid rect retains the property that rect.is_empty()
+    //           will return true (the mapped rect output will have size 0 instead
+    //           of a negative size). In future we could catch / assert / fix
+    //           these invalid rects earlier, and assert here instead.
+
+    let w = rect.width().max(0.0);
+    let h = rect.height().max(0.0);
+
+    let mut x0 = (rect.min.x - tx.tx) / tx.sx;
+    let mut y0 = (rect.min.y - tx.ty) / tx.sy;
+
+    let mut sx = w / tx.sx;
+    let mut sy = h / tx.sy;
+
+    // Handle negative scale. Previously, branchless float math was used to find the
+    // min / max vertices and size. However, that sequence of operations was producind
+    // additional floating point accuracy on android emulator builds, causing one test
+    // to fail an assert. Instead, we retain the same math as previously, and adjust
+    // the origin / size if required.
+
+    if tx.sx < 0.0 {
+        x0 += sx;
+        sx = -sx;
+    }
+    if tx.sy < 0.0 {
+        y0 += sy;
+        sy = -sy;
     }
 
-    pub fn unmap_point<F, T>(&self, point: &Point2D<f32, F>) -> Point2D<f32, T> {
-        Point2D::new(
-            (point.x - self.offset.x) / self.scale.x,
-            (point.y - self.offset.y) / self.scale.y,
-        )
+    Box2D::from_origin_and_size(
+        Point2D::new(x0, y0),
+        Size2D::new(sx, sy),
+    )
+}
+
+pub fn scale_offset_map_rect<F, T>(tx: &ScaleOffset, rect: &Box2D<f32, F>) -> Box2D<f32, T> {
+    let w = rect.width().max(0.0);
+    let h = rect.height().max(0.0);
+
+    let mut x0 = rect.min.x * tx.sx + tx.tx;
+    let mut y0 = rect.min.y * tx.sy + tx.ty;
+
+    let mut sx = w * tx.sx;
+    let mut sy = h * tx.sy;
+
+    if tx.sx < 0.0 {
+        x0 += sx;
+        sx = -sx;
+    }
+    if tx.sy < 0.0 {
+        y0 += sy;
+        sy = -sy;
     }
 
-    pub fn to_transform<F, T>(&self) -> Transform3D<f32, F, T> {
-        Transform3D::new(
-            self.scale.x,
-            0.0,
-            0.0,
-            0.0,
+    Box2D::from_origin_and_size(
+        Point2D::new(x0, y0),
+        Size2D::new(sx, sy),
+    )
+}
 
-            0.0,
-            self.scale.y,
-            0.0,
-            0.0,
+pub fn scale_offset_map_point<F, T>(tx: &ScaleOffset, point: &Point2D<f32, F>) -> Point2D<f32, T> {
+    Point2D::new(
+        point.x * tx.sx + tx.tx,
+        point.y * tx.sy + tx.ty,
+    )
+}
 
-            0.0,
-            0.0,
-            1.0,
-            0.0,
+pub fn scale_offset_unmap_point<F, T>(tx: &ScaleOffset, point: &Point2D<f32, F>) -> Point2D<f32, T> {
+    Point2D::new(
+        (point.x - tx.tx) / tx.sx,
+        (point.y - tx.ty) / tx.sy,
+    )
+}
 
-            self.offset.x,
-            self.offset.y,
-            0.0,
-            1.0,
-        )
-    }
+pub fn scale_offset_map_vector<F, T>(tx: &ScaleOffset, v: &Vector2D<f32, F>) -> Vector2D<f32, T> {
+    Vector2D::new(
+        v.x * tx.sx,
+        v.y * tx.sy,
+    )
+}
+
+pub fn scale_offset_pre_offset(s: &ScaleOffset, offset: Vector2D<f32, euclid::UnknownUnit>) -> ScaleOffset {
+    ScaleOffset::new(
+        s.sx,
+        s.sy,
+        offset.x * s.sx + s.tx,
+        offset.y * s.sy + s.ty,
+    )
 }
 
 // TODO: Implement these in euclid!
@@ -778,8 +626,8 @@ pub mod test {
     }
 
     fn validate_convert(xref: &LayoutTransform) {
-        let so = ScaleOffset::from_transform(xref).unwrap();
-        let xf = so.to_transform();
+        let so = scale_offset_from_transform(xref).unwrap();
+        let xf: LayoutTransform = so.to_transform3d().cast_unit();
         assert!(xref.approx_eq(&xf));
     }
 
@@ -787,13 +635,13 @@ pub mod test {
     fn negative_scale_map_unmap() {
         let xref = LayoutTransform::scale(1.0, -1.0, 1.0)
                         .pre_translate(LayoutVector3D::new(124.0, 38.0, 0.0));
-        let so = ScaleOffset::from_transform(&xref).unwrap();
+        let so = scale_offset_from_transform(&xref).unwrap();
         let local_rect = Box2D {
             min: LayoutPoint::new(50.0, -100.0),
             max: LayoutPoint::new(250.0, 300.0),
         };
 
-        let mapped_rect = so.map_rect::<LayoutPixel, DevicePixel>(&local_rect);
+        let mapped_rect: DeviceRect = scale_offset_map_rect(&so, &local_rect);
         let xf_rect = project_rect(
             &xref,
             &local_rect,
@@ -805,7 +653,7 @@ pub mod test {
         assert!(mapped_rect.max.x.approx_eq(&xf_rect.max.x));
         assert!(mapped_rect.max.y.approx_eq(&xf_rect.max.y));
 
-        let unmapped_rect = so.unmap_rect::<DevicePixel, LayoutPixel>(&mapped_rect);
+        let unmapped_rect: LayoutRect = scale_offset_unmap_rect(&so, &mapped_rect);
         assert!(unmapped_rect.min.x.approx_eq(&local_rect.min.x));
         assert!(unmapped_rect.min.y.approx_eq(&local_rect.min.y));
         assert!(unmapped_rect.max.x.approx_eq(&local_rect.max.x));
@@ -830,12 +678,12 @@ pub mod test {
     }
 
     fn validate_inverse(xref: &LayoutTransform) {
-        let s0 = ScaleOffset::from_transform(xref).unwrap();
-        let s1 = s0.inverse().pre_transform(&s0);
-        assert!((s1.scale.x - 1.0).abs() < NEARLY_ZERO &&
-                (s1.scale.y - 1.0).abs() < NEARLY_ZERO &&
-                s1.offset.x.abs() < NEARLY_ZERO &&
-                s1.offset.y.abs() < NEARLY_ZERO,
+        let s0 = scale_offset_from_transform(xref).unwrap();
+        let s1 = s0.inverse().unwrap().pre_transform(&s0);
+        assert!((s1.sx - 1.0).abs() < NEARLY_ZERO &&
+                (s1.sy - 1.0).abs() < NEARLY_ZERO &&
+                s1.tx.abs() < NEARLY_ZERO &&
+                s1.ty.abs() < NEARLY_ZERO,
                 "{:?}",
                 s1);
     }
@@ -861,10 +709,10 @@ pub mod test {
     fn validate_accumulate(x0: &LayoutTransform, x1: &LayoutTransform) {
         let x = x1.then(&x0);
 
-        let s0 = ScaleOffset::from_transform(x0).unwrap();
-        let s1 = ScaleOffset::from_transform(x1).unwrap();
+        let s0 = scale_offset_from_transform(x0).unwrap();
+        let s1 = scale_offset_from_transform(x1).unwrap();
 
-        let s = s0.pre_transform(&s1).to_transform();
+        let s: LayoutTransform = s0.pre_transform(&s1).to_transform3d().cast_unit();
 
         assert!(x.approx_eq(&s), "{:?}\n{:?}", x, s);
     }
@@ -881,11 +729,11 @@ pub mod test {
     fn scale_offset_invalid_scale() {
         let s0 = ScaleOffset::new(0.0, 1.0, 10.0, 20.0);
         let i0 = s0.inverse();
-        assert_eq!(i0, ScaleOffset::new(0.0, 0.0, 0.0, 0.0));
+        assert_eq!(i0, None);
 
         let s1 = ScaleOffset::new(1.0, 0.0, 10.0, 20.0);
         let i1 = s1.inverse();
-        assert_eq!(i1, ScaleOffset::new(0.0, 0.0, 0.0, 0.0));
+        assert_eq!(i1, None);
     }
 
     #[test]
@@ -1048,12 +896,12 @@ impl<Src, Dst> FastTransform<Src, Dst> {
     }
 
     pub fn with_scale_offset(scale_offset: ScaleOffset) -> Self {
-        if scale_offset.scale == Vector2D::new(1.0, 1.0) {
-            FastTransform::Offset(Vector2D::from_untyped(scale_offset.offset))
+        if scale_offset.sx == 1.0 && scale_offset.sy == 1.0 {
+            FastTransform::Offset(Vector2D::new(scale_offset.tx, scale_offset.ty))
         } else {
             FastTransform::Transform {
-                transform: scale_offset.to_transform(),
-                inverse: Some(scale_offset.inverse().to_transform()),
+                transform: scale_offset.to_transform3d().cast_unit(),
+                inverse: scale_offset.inverse().map(|inv| inv.to_transform3d().cast_unit()),
                 is_2d: true,
             }
         }
@@ -1621,6 +1469,6 @@ fn scale_offset_pre_post() {
     let b = ScaleOffset::new(5.0, 6.0, 7.0, 8.0);
 
     assert_eq!(a.then(&b), b.pre_transform(&a));
-    assert_eq!(a.then_scale(10.0), a.then(&ScaleOffset::from_scale(Vector2D::new(10.0, 10.0))));
-    assert_eq!(a.pre_scale(10.0), a.pre_transform(&ScaleOffset::from_scale(Vector2D::new(10.0, 10.0))));
+    assert_eq!(a.then(&ScaleOffset::scale(10.0, 10.0)), a.then(&ScaleOffset::scale(10.0, 10.0)));
+    assert_eq!(a.pre_transform(&ScaleOffset::scale(10.0, 10.0)), a.pre_transform(&ScaleOffset::scale(10.0, 10.0)));
 }

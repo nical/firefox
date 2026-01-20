@@ -17,7 +17,7 @@ use crate::tile_cache::TileId;
 use crate::prim_store::DeferredResolve;
 use crate::resource_cache::{ImageRequest, ResourceCache};
 use crate::segment::EdgeAaSegmentMask;
-use crate::util::{extract_inner_rect_safe, Preallocator, ScaleOffset};
+use crate::util::{extract_inner_rect_safe, Preallocator, ScaleOffset, scale_offset_map_rect};
 use crate::tile_cache::PictureCacheDebugInfo;
 use crate::device::Device;
 use crate::space::SpaceMapper;
@@ -783,7 +783,7 @@ impl CompositeState {
         transform_index: CompositorTransformIndex,
     ) -> DeviceRect {
         let transform = &self.transforms[transform_index.0];
-        transform.local_to_device.map_rect(&local_rect).round()
+        scale_offset_map_rect(&transform.local_to_device, local_rect).round()
     }
 
     /// Calculate the device-space rect of a local compositor surface rect, normalized
@@ -796,8 +796,8 @@ impl CompositeState {
     ) -> DeviceRect {
         let transform = &self.transforms[transform_index.0];
 
-        let surface_bounds = transform.local_to_raster.map_rect(&local_bounds);
-        let surface_rect = transform.local_to_raster.map_rect(&local_sub_rect);
+        let surface_bounds = scale_offset_map_rect(&transform.local_to_raster, local_bounds);
+        let surface_rect = scale_offset_map_rect(&transform.local_to_raster, local_sub_rect);
 
         surface_rect
             .round_out()

@@ -34,7 +34,7 @@ use crate::space::SpaceMapper;
 use crate::visibility::{PrimitiveVisibilityFlags, VisibilityState};
 use smallvec::SmallVec;
 use std::{f32, i32, usize};
-use crate::util::{project_rect, MaxRect, TransformedRectKind, ScaleOffset};
+use crate::util::{project_rect, MaxRect, TransformedRectKind, ScaleOffset, scale_offset_unmap_rect, MatrixHelpers};
 use crate::segment::EdgeAaSegmentMask;
 
 
@@ -1031,9 +1031,9 @@ impl BatchBuilder {
                         let raster_clip_rect = map_local_to_raster
                             .map(&prim_info.clip_chain.local_clip_rect)
                             .unwrap();
-                        local_clip_rect = transform.unmap_rect(&raster_clip_rect);
+                        local_clip_rect = scale_offset_unmap_rect(&transform, &raster_clip_rect);
 
-                        transforms.get_custom(transform.to_transform())
+                        transforms.get_custom(transform.to_transform3d().cast_unit())
                     };
 
                     let picture_prim_header = PrimitiveHeader {

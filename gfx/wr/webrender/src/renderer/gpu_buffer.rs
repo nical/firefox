@@ -189,10 +189,10 @@ impl Into<GpuBufferBlockF> for ScaleOffset {
     fn into(self) -> GpuBufferBlockF {
         GpuBufferBlockF {
             data: [
-                self.scale.x,
-                self.scale.y,
-                self.offset.x,
-                self.offset.y,
+                self.sx,
+                self.sy,
+                self.tx,
+                self.ty,
             ],
         }
     }

@@ -12,7 +12,7 @@ use euclid::{Transform3D, Box2D, Point2D, Vector2D};
 use api::units::*;
 use crate::spatial_tree::{SpatialTree, CoordinateSpaceMapping, SpatialNodeIndex, VisibleFace, SpatialNodeContainer};
 use crate::util::project_rect;
-use crate::util::{MatrixHelpers, ScaleOffset, RectHelpers, PointHelpers};
+use crate::util::{MatrixHelpers, ScaleOffset, RectHelpers, PointHelpers, scale_offset_map_rect, scale_offset_unmap_rect, scale_offset_map_point, scale_offset_unmap_point, scale_offset_map_vector};
 
 
 #[derive(Debug, Clone)]
@@ -66,7 +66,7 @@ impl<F, T> SpaceMapper<F, T> where F: fmt::Debug {
             CoordinateSpaceMapping::Local
         } else if ref_spatial_node.coordinate_system_id == target_spatial_node.coordinate_system_id {
             let scale_offset = target_spatial_node.content_transform
-                .then(&ref_spatial_node.content_transform.inverse());
+                .then(&ref_spatial_node.content_transform.inverse().unwrap());
             CoordinateSpaceMapping::ScaleOffset(scale_offset)
         } else {
             let transform = spatial_tree
@@ -90,7 +90,7 @@ impl<F, T> SpaceMapper<F, T> where F: fmt::Debug {
                 Transform3D::identity()
             }
             CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => {
-                scale_offset.to_transform()
+                scale_offset.to_transform3d().cast_unit()
             }
             CoordinateSpaceMapping::Transform(transform) => {
                 transform
@@ -104,7 +104,7 @@ impl<F, T> SpaceMapper<F, T> where F: fmt::Debug {
                 Some(rect.cast_unit())
             }
             CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => {
-                Some(scale_offset.unmap_rect(rect))
+                Some(scale_offset_unmap_rect(scale_offset, rect))
             }
             CoordinateSpaceMapping::Transform(ref transform) => {
                 transform.inverse_rect_footprint(rect)
@@ -118,7 +118,7 @@ impl<F, T> SpaceMapper<F, T> where F: fmt::Debug {
                 Some(rect.cast_unit())
             }
             CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => {
-                Some(scale_offset.map_rect(rect))
+                Some(scale_offset_map_rect(scale_offset, rect))
             }
             CoordinateSpaceMapping::Transform(ref transform) => {
                 match project_rect(transform, rect, &self.bounds) {
@@ -141,7 +141,7 @@ impl<F, T> SpaceMapper<F, T> where F: fmt::Debug {
                 Some(rect.cast_unit())
             }
             CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => {
-                Some(scale_offset.map_rect(rect))
+                Some(scale_offset_map_rect(scale_offset, rect))
             }
             CoordinateSpaceMapping::Transform(..) => {
                 // We could figure out a rect that is contained in the transformed rect but
@@ -158,7 +158,7 @@ impl<F, T> SpaceMapper<F, T> where F: fmt::Debug {
                 Some(p.cast_unit())
             }
             CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => {
-                Some(scale_offset.map_point(&p))
+                Some(scale_offset_map_point(scale_offset, &p))
             }
             CoordinateSpaceMapping::Transform(ref transform) => {
                 transform.transform_point2d(p)
@@ -172,7 +172,7 @@ impl<F, T> SpaceMapper<F, T> where F: fmt::Debug {
                 v.cast_unit()
             }
             CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => {
-                scale_offset.map_vector(&v)
+                scale_offset_map_vector(scale_offset, &v)
             }
             CoordinateSpaceMapping::Transform(ref transform) => {
                 transform.transform_vector2d(v)
@@ -235,10 +235,11 @@ impl SpaceSnapper {
         self.current_target_spatial_node_index = target_node_index;
         self.snapping_transform = match (ref_snap, target_snap) {
             (Some(ref ref_scale_offset), Some(ref target_scale_offset)) => {
-                Some(target_scale_offset
-                    .pre_scale(self.raster_pixel_scale.0)
-                    .then(&ref_scale_offset.inverse())
-                )
+                ref_scale_offset.inverse().map(|inv| {
+                    target_scale_offset
+                        .pre_scale(self.raster_pixel_scale.0, self.raster_pixel_scale.0)
+                        .then(&inv)
+                })
             }
             _ => None,
         };
@@ -248,8 +249,9 @@ impl SpaceSnapper {
         debug_assert!(self.current_target_spatial_node_index != SpatialNodeIndex::INVALID);
         match self.snapping_transform {
             Some(ref scale_offset) => {
-                let snapped_device_rect: DeviceRect = scale_offset.map_rect(rect).snap();
-                scale_offset.unmap_rect(&snapped_device_rect)
+                let snapped_device_rect: DeviceRect = scale_offset_map_rect(scale_offset, rect);
+                let snapped_device_rect = snapped_device_rect.snap();
+                scale_offset_unmap_rect(scale_offset, &snapped_device_rect)
             }
             None => *rect,
         }
@@ -259,8 +261,9 @@ impl SpaceSnapper {
         debug_assert!(self.current_target_spatial_node_index != SpatialNodeIndex::INVALID);
         match self.snapping_transform {
             Some(ref scale_offset) => {
-                let snapped_device_vector : DevicePoint = scale_offset.map_point(point).snap();
-                scale_offset.unmap_point(&snapped_device_vector)
+                let snapped_device_point: DevicePoint = scale_offset_map_point(scale_offset, point);
+                let snapped_device_point = snapped_device_point.snap();
+                scale_offset_unmap_point(scale_offset, &snapped_device_point)
             }
             None => *point,
         }

@@ -12,7 +12,7 @@ use crate::spatial_tree::{CoordinateSystem, SpatialNodeIndex, TransformUpdateSta
 use crate::spatial_tree::CoordinateSystemId;
 use euclid::{Vector2D, SideOffsets2D};
 use crate::scene::SceneProperties;
-use crate::util::{LayoutFastTransform, MatrixHelpers, ScaleOffset, TransformedRectKind};
+use crate::util::{LayoutFastTransform, MatrixHelpers, ScaleOffset, TransformedRectKind, scale_offset_from_transform, scale_offset_pre_offset};
 use crate::util::{PointHelpers, VectorHelpers};
 
 /// The kind of a spatial node uid. These are required because we currently create external
@@ -313,15 +313,15 @@ pub struct SpatialNode {
 /// those are either cases where snapping is not important (e.g. has perspective
 /// or is not axis aligned), or an edge case (e.g. SVG filters) which we can accept
 /// imperfection for now.
-fn snap_offset<OffsetUnits, ScaleUnits>(
-    offset: Vector2D<f32, OffsetUnits>,
-    scale: Vector2D<f32, ScaleUnits>,
-) -> Vector2D<f32, OffsetUnits> {
-    let world_offset = WorldPoint::new(offset.x * scale.x, offset.y * scale.y);
+fn snap_offset<U>(
+    offset: Vector2D<f32, U>,
+    transform: &ScaleOffset,
+) -> Vector2D<f32, U> {
+    let world_offset = WorldPoint::new(offset.x * transform.sx, offset.y * transform.sy);
     let snapped_world_offset = world_offset.snap();
     Vector2D::new(
-        if scale.x != 0.0 { snapped_world_offset.x / scale.x } else { offset.x },
-        if scale.y != 0.0 { snapped_world_offset.y / scale.y } else { offset.y },
+        if transform.sx != 0.0 { snapped_world_offset.x / transform.sx } else { offset.x },
+        if transform.sy != 0.0 { snapped_world_offset.y / transform.sy } else { offset.y },
     )
 }
 
@@ -471,7 +471,7 @@ impl SpatialNode {
                     None => {
                         snap_offset(
                             info.origin_in_parent_reference_frame,
-                            state.coordinate_system_relative_scale_offset.scale,
+                            &state.coordinate_system_relative_scale_offset,
                         )
                     }
                 };
@@ -485,7 +485,7 @@ impl SpatialNode {
                 // between our reference frame and this node. Finally, we also include
                 // whatever local transformation this reference frame provides.
                 let relative_transform = resolved_transform
-                    .then_translate(snap_offset(state.parent_accumulated_scroll_offset, state.coordinate_system_relative_scale_offset.scale))
+                    .then_translate(snap_offset(state.parent_accumulated_scroll_offset, &state.coordinate_system_relative_scale_offset))
                     .to_transform()
                     .with_destination::<LayoutPixel>();
 
@@ -499,18 +499,21 @@ impl SpatialNode {
                 if !reset_cs_id {
                     // Try to update our compatible coordinate system transform. If we cannot, start a new
                     // incompatible coordinate system.
-                    match ScaleOffset::from_transform(&relative_transform) {
+                    match scale_offset_from_transform(&relative_transform) {
                         Some(ref scale_offset) => {
                             // We generally do not want to snap animated transforms as it causes jitter.
                             // However, we do want to snap the visual viewport offset when scrolling.
                             // This may still cause jitter when zooming, unfortunately.
-                            let mut maybe_snapped = scale_offset.clone();
-                            if let ReferenceFrameKind::Transform { should_snap: true, .. } = info.kind {
-                                maybe_snapped.offset = snap_offset(
-                                    scale_offset.offset,
-                                    state.coordinate_system_relative_scale_offset.scale,
+                            let maybe_snapped = if let ReferenceFrameKind::Transform { should_snap: true, .. } = info.kind {
+                                let offset: euclid::Vector2D<f32, euclid::UnknownUnit> = euclid::Vector2D::new(scale_offset.tx, scale_offset.ty);
+                                let snapped_offset = snap_offset(
+                                    offset,
+                                    &state.coordinate_system_relative_scale_offset,
                                 );
-                            }
+                                ScaleOffset::new(scale_offset.sx, scale_offset.sy, snapped_offset.x, snapped_offset.y)
+                            } else {
+                                *scale_offset
+                            };
                             cs_scale_offset = maybe_snapped.then(&state.coordinate_system_relative_scale_offset);
                         }
                         None => reset_cs_id = true,
@@ -520,7 +523,7 @@ impl SpatialNode {
                     // If we break 2D axis alignment or have a perspective component, we need to start a
                     // new incompatible coordinate system with which we cannot share clips without masking.
                     let transform = relative_transform.then(
-                        &state.coordinate_system_relative_scale_offset.to_transform()
+                        &state.coordinate_system_relative_scale_offset.to_transform3d().cast_unit()
                     );
 
                     // Push that new coordinate system and record the new id.
@@ -558,11 +561,11 @@ impl SpatialNode {
             SpatialNodeType::StickyFrame(ref mut info) => {
                 let animated_offset = if let Some(transform_binding) = info.transform {
                   let transform = scene_properties.resolve_layout_transform(&transform_binding);
-                  match ScaleOffset::from_transform(&transform) {
+                  match scale_offset_from_transform(&transform) {
                     Some(ref scale_offset) => {
-                      debug_assert!(scale_offset.scale == Vector2D::new(1.0, 1.0),
+                      debug_assert!(scale_offset.sx == 1.0 && scale_offset.sy == 1.0,
                                     "Can only animate a translation on sticky elements");
-                      LayoutVector2D::from_untyped(scale_offset.offset)
+                      LayoutVector2D::new(scale_offset.tx, scale_offset.ty)
                     }
                     None => {
                       debug_assert!(false, "Can only animate a translation on sticky elements");
@@ -583,8 +586,10 @@ impl SpatialNode {
                 // transform, plus any accumulated scroll offset from our parents, plus any offset
                 // provided by our own sticky positioning.
                 let accumulated_offset = state.parent_accumulated_scroll_offset + sticky_offset + animated_offset;
-                self.viewport_transform = state.coordinate_system_relative_scale_offset
-                    .pre_offset(snap_offset(accumulated_offset, state.coordinate_system_relative_scale_offset.scale).to_untyped());
+                self.viewport_transform = scale_offset_pre_offset(
+                    &state.coordinate_system_relative_scale_offset,
+                    snap_offset(accumulated_offset, &state.coordinate_system_relative_scale_offset).to_untyped()
+                );
                 self.content_transform = self.viewport_transform;
 
                 info.current_offset = sticky_offset + animated_offset;
@@ -595,14 +600,18 @@ impl SpatialNode {
                 // The transformation for the bounds of our viewport is the parent reference frame
                 // transform, plus any accumulated scroll offset from our parents.
                 let accumulated_offset = state.parent_accumulated_scroll_offset;
-                self.viewport_transform = state.coordinate_system_relative_scale_offset
-                    .pre_offset(snap_offset(accumulated_offset, state.coordinate_system_relative_scale_offset.scale).to_untyped());
+                self.viewport_transform = scale_offset_pre_offset(
+                    &state.coordinate_system_relative_scale_offset,
+                    snap_offset(accumulated_offset, &state.coordinate_system_relative_scale_offset).to_untyped()
+                );
 
                 // The transformation for any content inside of us is the viewport transformation, plus
                 // whatever scrolling offset we supply as well.
                 let added_offset = accumulated_offset + self.scroll_offset();
-                self.content_transform = state.coordinate_system_relative_scale_offset
-                    .pre_offset(snap_offset(added_offset, state.coordinate_system_relative_scale_offset.scale).to_untyped());
+                self.content_transform = scale_offset_pre_offset(
+                    &state.coordinate_system_relative_scale_offset,
+                    snap_offset(added_offset, &state.coordinate_system_relative_scale_offset).to_untyped()
+                );
 
                 self.coordinate_system_id = state.current_coordinate_system_id;
           }

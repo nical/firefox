@@ -105,7 +105,7 @@ use crate::spatial_tree::{SpatialTree, CoordinateSpaceMapping, SpatialNodeIndex,
 use crate::composite::{tile_kind, CompositeTileSurface, CompositorKind, NativeTileId};
 use crate::composite::{CompositeTileDescriptor, CompositeTile};
 use crate::debug_colors;
-use euclid::{vec3, Scale, Vector2D, Box2D};
+use euclid::{vec3, Scale, Box2D};
 use crate::internal_types::{FastHashMap, PlaneSplitter, Filter};
 use crate::internal_types::{PlaneSplitterIndex, PlaneSplitAnchor, TextureSource};
 use crate::frame_builder::{FrameBuildingContext, FrameBuildingState, PictureState, PictureContext};
@@ -129,7 +129,7 @@ use smallvec::SmallVec;
 use std::{mem, u8, u32};
 use std::ops::Range;
 use crate::picture_textures::PictureCacheTextureHandle;
-use crate::util::{MaxRect, Recycler, ScaleOffset};
+use crate::util::{MaxRect, Recycler, ScaleOffset, scale_offset_from_transform, MatrixHelpers};
 use crate::tile_cache::{SliceDebugInfo, TileDebugInfo, DirtyTileDebugInfo};
 use crate::tile_cache::{SliceId, TileCacheInstance, TileSurface, NativeSurface};
 use crate::tile_cache::{BackdropKind, BackdropSurface};
@@ -983,8 +983,8 @@ impl PicturePrimitive {
                 );
                 splitter.add(polygon);
             }
-            CoordinateSpaceMapping::ScaleOffset(scale_offset) if scale_offset.scale == Vector2D::new(1.0, 1.0) => {
-                let inv_matrix = scale_offset.inverse().to_transform().cast();
+            CoordinateSpaceMapping::ScaleOffset(scale_offset) if scale_offset.sx == 1.0 && scale_offset.sy == 1.0 => {
+                let inv_matrix = scale_offset.inverse().unwrap().to_transform3d().cast_unit().cast();
                 let polygon = Polygon::from_transformed_rect_with_inverse(
                     local_rect.to_rect().to_untyped(),
                     &matrix,
@@ -1169,7 +1169,7 @@ impl PicturePrimitive {
                             frame_context.root_spatial_node_index,
                             frame_context.spatial_tree,
                         );
-                        let local_to_cur_raster_scale = local_to_device.scale.x / tile_cache.current_raster_scale;
+                        let local_to_cur_raster_scale = local_to_device.sx / tile_cache.current_raster_scale;
 
                         // We only update the raster scale if we're in high quality zoom mode, or there is no
                         // pinch-zoom active, or the zoom has doubled or halved since the raster scale was
@@ -1185,7 +1185,7 @@ impl PicturePrimitive {
                             || local_to_cur_raster_scale <= 0.5
                             || local_to_cur_raster_scale >= 2.0
                         {
-                            tile_cache.current_raster_scale = local_to_device.scale.x;
+                            tile_cache.current_raster_scale = local_to_device.sx;
                         }
 
                         // We may need to minify when zooming out picture cache tiles
@@ -1536,20 +1536,18 @@ pub fn get_relative_scale_offset(
         child_spatial_node_index,
         parent_spatial_node_index,
     );
-    let mut scale_offset = match transform {
+    let scale_offset = match transform {
         CoordinateSpaceMapping::Local => ScaleOffset::identity(),
         CoordinateSpaceMapping::ScaleOffset(scale_offset) => scale_offset,
         CoordinateSpaceMapping::Transform(m) => {
-            ScaleOffset::from_transform(&m).expect("bug: pictures caches don't support complex transforms")
+            scale_offset_from_transform(&m).expect("bug: pictures caches don't support complex transforms")
         }
     };
 
     // Compositors expect things to be aligned on device pixels. Logic at a higher level ensures that is
     // true, but floating point inaccuracy can sometimes result in small differences, so remove
     // them here.
-    scale_offset.offset = scale_offset.offset.round();
-
-    scale_offset
+    ScaleOffset::new(scale_offset.sx, scale_offset.sy, scale_offset.tx.round(), scale_offset.ty.round())
 }
 
 /// Update dirty rects, ensure that tiles have backing surfaces and build

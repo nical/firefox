@@ -41,7 +41,7 @@ use crate::scene_building::SliceFlags;
 use crate::space::SpaceMapper;
 use crate::spatial_tree::{SpatialNodeIndex, SpatialTree};
 use crate::surface::{SubpixelMode, SurfaceInfo};
-use crate::util::{ScaleOffset, MatrixHelpers, MaxRect};
+use crate::util::{ScaleOffset, MatrixHelpers, MaxRect, ScaleOffsetExt, scale_offset_map_rect};
 use crate::visibility::{FrameVisibilityContext, FrameVisibilityState, VisibilityState, PrimitiveVisibilityFlags};
 use euclid::approxeq::ApproxEq;
 use euclid::Box2D;
@@ -1129,7 +1129,7 @@ impl TileCacheInstance {
                                     }
                                     ClipSpaceConversion::ScaleOffset(scale_offset) => {
                                         (
-                                            scale_offset.map_rect(&rect),
+                                            scale_offset_map_rect(&scale_offset, &rect),
                                             BorderRadius {
                                                 top_left: scale_offset.map_size(&radius.top_left),
                                                 top_right: scale_offset.map_size(&radius.top_right),
@@ -1236,26 +1236,26 @@ impl TileCacheInstance {
         let mut raster_to_device = local_to_device;
 
         if frame_context.config.low_quality_pinch_zoom {
-            raster_to_device.scale.x /= self.current_raster_scale;
-            raster_to_device.scale.y /= self.current_raster_scale;
+            raster_to_device.sx /= self.current_raster_scale;
+            raster_to_device.sy /= self.current_raster_scale;
         } else {
-            raster_to_device.scale.x = 1.0;
-            raster_to_device.scale.y = 1.0;
+            raster_to_device.sx = 1.0;
+            raster_to_device.sy = 1.0;
         }
 
         // Use that compositor transform to calculate a relative local to surface
-        let local_to_raster = local_to_device.then(&raster_to_device.inverse());
+        let local_to_raster = local_to_device.then(&raster_to_device.inverse().unwrap());
 
         const EPSILON: f32 = 0.001;
         let compositor_translation_changed =
-            !raster_to_device.offset.x.approx_eq_eps(&self.raster_to_device.offset.x, &EPSILON) ||
-            !raster_to_device.offset.y.approx_eq_eps(&self.raster_to_device.offset.y, &EPSILON);
+            !raster_to_device.tx.approx_eq_eps(&self.raster_to_device.tx, &EPSILON) ||
+            !raster_to_device.ty.approx_eq_eps(&self.raster_to_device.ty, &EPSILON);
         let compositor_scale_changed =
-            !raster_to_device.scale.x.approx_eq_eps(&self.raster_to_device.scale.x, &EPSILON) ||
-            !raster_to_device.scale.y.approx_eq_eps(&self.raster_to_device.scale.y, &EPSILON);
+            !raster_to_device.sx.approx_eq_eps(&self.raster_to_device.sx, &EPSILON) ||
+            !raster_to_device.sy.approx_eq_eps(&self.raster_to_device.sy, &EPSILON);
         let surface_scale_changed =
-            !local_to_raster.scale.x.approx_eq_eps(&self.local_to_raster.scale.x, &EPSILON) ||
-            !local_to_raster.scale.y.approx_eq_eps(&self.local_to_raster.scale.y, &EPSILON);
+            !local_to_raster.sx.approx_eq_eps(&self.local_to_raster.sx, &EPSILON) ||
+            !local_to_raster.sy.approx_eq_eps(&self.local_to_raster.sy, &EPSILON);
 
         if compositor_translation_changed ||
            compositor_scale_changed ||
@@ -1308,8 +1308,8 @@ impl TileCacheInstance {
         );
 
         self.tile_size = PictureSize::new(
-            world_tile_size.width / self.local_to_raster.scale.x,
-            world_tile_size.height / self.local_to_raster.scale.y,
+            world_tile_size.width / self.local_to_raster.sx,
+            world_tile_size.height / self.local_to_raster.sy,
         );
 
         // Inflate the needed rect a bit, so that we retain tiles that we have drawn
@@ -1819,7 +1819,7 @@ impl TileCacheInstance {
             return Ok(surface_kind);
         }
 
-        let prim_offset = ScaleOffset::from_offset(local_prim_rect.min.to_vector().cast_unit());
+        let prim_offset = ScaleOffset::offset(local_prim_rect.min.x, local_prim_rect.min.y);
 
         let local_prim_to_device = get_relative_scale_offset(
             prim_spatial_node_index,
@@ -1848,7 +1848,7 @@ impl TileCacheInstance {
             CompositorKind::Native { capabilities, .. } => {
                 if external_image_id.is_some() &&
                 !capabilities.supports_external_compositor_surface_negative_scaling &&
-                (raster_to_device.scale.x < 0.0 || raster_to_device.scale.y < 0.0) {
+                (raster_to_device.sx < 0.0 || raster_to_device.sy < 0.0) {
                     external_image_id = None;
                 }
             }
@@ -1896,7 +1896,7 @@ impl TileCacheInstance {
                     }
                     ClipSpaceConversion::ScaleOffset(scale_offset) => {
                         (
-                            scale_offset.map_rect(&rect),
+                            scale_offset_map_rect(&scale_offset, &rect),
                             BorderRadius {
                                 top_left: scale_offset.map_size(&radius.top_left),
                                 top_right: scale_offset.map_size(&radius.top_right),

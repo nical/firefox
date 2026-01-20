@@ -319,10 +319,10 @@ void RenderCompositorLayersSWGL::AddSurface(
     wr::NativeSurfaceId aId, const wr::CompositorSurfaceTransform& aTransform,
     wr::DeviceIntRect aClipRect, wr::ImageRendering aImageRendering,
     wr::DeviceIntRect aRoundedClipRect, wr::ClipRadius aClipRadius) {
-  float sx = aTransform.scale.x;
-  float sy = aTransform.scale.y;
-  float tx = aTransform.offset.x;
-  float ty = aTransform.offset.y;
+  float sx = aTransform.sx;
+  float sy = aTransform.sy;
+  float tx = aTransform.tx;
+  float ty = aTransform.ty;
   gfx::Matrix4x4 transform(sx, 0.0, 0.0, 0.0, 0.0, sy, 0.0, 0.0, 0.0, 0.0, 1.0,
                            0.0, tx, ty, 0.0, 1.0);
   gfx::IntRect clipRect(aClipRect.min.x, aClipRect.min.y, aClipRect.width(),

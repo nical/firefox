@@ -1150,10 +1150,10 @@ void DCLayerTree::AddSurface(wr::NativeSurfaceId aId,
   const auto surface = it->second.get();
   const auto visual = surface->GetContentVisual();
 
-  float sx = aTransform.scale.x;
-  float sy = aTransform.scale.y;
-  float tx = aTransform.offset.x;
-  float ty = aTransform.offset.y;
+  float sx = aTransform.sx;
+  float sy = aTransform.sy;
+  float tx = aTransform.tx;
+  float ty = aTransform.ty;
   gfx::Matrix transform(sx, 0.0, 0.0, sy, tx, ty);
 
   surface->PresentExternalSurface(transform);

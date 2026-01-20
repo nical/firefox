@@ -251,7 +251,7 @@ impl Renderer {
             let clip_rect = item.rectangle;
             let tile_rect = composite_state.get_device_rect(&tile.local_rect, tile.transform_index);
             let transform = composite_state.get_device_transform(tile.transform_index);
-            let flip = (transform.scale.x < 0.0, transform.scale.y < 0.0);
+            let flip = (transform.sx < 0.0, transform.sy < 0.0);
 
             let clip = if item.key.needs_mask {
                 tile.clip_index.map(|index| {

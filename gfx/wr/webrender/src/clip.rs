@@ -112,7 +112,7 @@ use crate::render_task_graph::RenderTaskGraphBuilder;
 use crate::resource_cache::{ImageRequest, ResourceCache};
 use crate::scene_builder_thread::Interners;
 use crate::space::SpaceMapper;
-use crate::util::{clamp_to_scale_factor, extract_inner_rect_safe, project_rect, MatrixHelpers, MaxRect, ScaleOffset};
+use crate::util::{clamp_to_scale_factor, extract_inner_rect_safe, project_rect, MatrixHelpers, MaxRect, ScaleOffset, scale_offset_map_rect, scale_offset_unmap_rect};
 use euclid::approxeq::ApproxEq;
 use std::{iter, ops, u32, mem};
 
@@ -1051,7 +1051,7 @@ impl ClipSpaceConversion {
             ClipSpaceConversion::Local
         } else if prim_spatial_node.coordinate_system_id == clip_spatial_node.coordinate_system_id {
             let scale_offset = clip_spatial_node.content_transform
-                .then(&prim_spatial_node.content_transform.inverse());
+                .then(&prim_spatial_node.content_transform.inverse().unwrap());
             ClipSpaceConversion::ScaleOffset(scale_offset)
         } else {
             ClipSpaceConversion::Transform(
@@ -1537,7 +1537,7 @@ impl ClipStore {
                 }
                 ClipSpaceConversion::ScaleOffset(ref scale_offset) => {
                     has_non_local_clips = true;
-                    node.item.kind.get_clip_result(&scale_offset.unmap_rect(&local_bounding_rect))
+                    node.item.kind.get_clip_result(&scale_offset_unmap_rect(scale_offset, &local_bounding_rect))
                 }
                 ClipSpaceConversion::Transform(ref transform) => {
                     has_non_local_clips = true;
@@ -2329,7 +2329,7 @@ fn add_clip_node_to_current_chain(
                 };
             }
             ClipSpaceConversion::ScaleOffset(ref scale_offset) => {
-                let clip_rect = scale_offset.map_rect(&clip_rect);
+                let clip_rect = scale_offset_map_rect(scale_offset, &clip_rect);
                 *local_clip_rect = match local_clip_rect.intersection(&clip_rect) {
                     Some(rect) => rect,
                     None => return false,

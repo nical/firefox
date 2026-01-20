@@ -24,7 +24,7 @@ use crate::segment::EdgeAaSegmentMask;
 use crate::space::SpaceMapper;
 use crate::spatial_tree::{CoordinateSpaceMapping, SpatialNodeIndex, SpatialTree};
 use crate::surface::SurfaceBuilder;
-use crate::util::{extract_inner_rect_k, MaxRect, ScaleOffset};
+use crate::util::{extract_inner_rect_k, MaxRect, ScaleOffset, scale_offset_map_rect, ScaleOffsetExt};
 use crate::visibility::compute_conservative_visible_rect;
 
 /// This type reflects the unfortunate situation with quad coordinates where we
@@ -553,7 +553,7 @@ fn prepare_quad_impl(
                 // Add regions to the classifier depending on the clip kind
                 match clip_node.item.kind {
                     ClipItemKind::Rectangle { mode, ref rect } => {
-                        let rect = transform.map_rect(rect);
+                        let rect = scale_offset_map_rect(&transform, rect);
                         scratch.quad_tile_classifier.add_clip_rect(rect, mode);
                     }
                     ClipItemKind::RoundedRectangle { mode: ClipMode::Clip, ref rect, ref radius } => {
@@ -561,7 +561,7 @@ fn prepare_quad_impl(
                         // and to add the clip rect itself (to cull tiles outside that rect)
 
                         // Map the local rect and radii
-                        let rect = transform.map_rect(rect);
+                        let rect = scale_offset_map_rect(&transform, rect);
                         let r_tl = transform.map_size(&radius.top_left);
                         let r_tr = transform.map_size(&radius.top_right);
                         let r_br = transform.map_size(&radius.bottom_right);
@@ -605,7 +605,7 @@ fn prepare_quad_impl(
                         // use to cull inner tiles. If we can't, the entire rect needs to be masked
                         match extract_inner_rect_k(rect, radius, 0.5) {
                             Some(ref rect) => {
-                                let rect = transform.map_rect(rect);
+                                let rect = scale_offset_map_rect(&transform, rect);
                                 scratch.quad_tile_classifier.add_clip_rect(rect, ClipMode::ClipOut);
                             }
                             None => {
@@ -748,9 +748,9 @@ fn prepare_quad_impl(
             if !scratch.quad_direct_segments.is_empty() {
                 let local_to_device = map_prim_to_raster.as_2d_scale_offset()
                     .expect("bug: nine-patch segments should be axis-aligned only")
-                    .then_scale(device_pixel_scale.0);
+                    .then_scale(device_pixel_scale.0, device_pixel_scale.0);
 
-                let device_prim_rect: DeviceRect = local_to_device.map_rect(&local_rect);
+                let device_prim_rect: DeviceRect = scale_offset_map_rect(&local_to_device, &local_rect);
 
                 let pattern = match shared_pattern {
                     Some(shared_pattern) => shared_pattern.clone(),
@@ -765,7 +765,7 @@ fn prepare_quad_impl(
 
                 add_pattern_prim(
                     &pattern,
-                    local_to_device.inverse(),
+                    local_to_device.inverse().unwrap(),
                     prim_instance_index,
                     device_prim_rect.to_untyped(),
                     clip_coverage_rect.to_untyped(),
@@ -799,9 +799,9 @@ fn prepare_quad_impl(
 
             let local_to_device = map_prim_to_raster.as_2d_scale_offset()
                 .expect("bug: nine-patch segments should be axis-aligned only")
-                .then_scale(device_pixel_scale.0);
+                .then_scale(device_pixel_scale.0, device_pixel_scale.0);
 
-            let device_prim_rect: DeviceRect = local_to_device.map_rect(&local_rect);
+            let device_prim_rect: DeviceRect = scale_offset_map_rect(&local_to_device, &local_rect);
 
             let local_corner_0 = LayoutRect::new(
                 clip_rect.min,
@@ -941,7 +941,7 @@ fn prepare_quad_impl(
 
                 add_pattern_prim(
                     &pattern,
-                    local_to_device.inverse(),
+                    local_to_device.inverse().unwrap(),
                     prim_instance_index,
                     device_prim_rect.cast_unit(),
                     clip_coverage_rect.cast_unit(),

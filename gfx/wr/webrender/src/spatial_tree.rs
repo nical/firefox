@@ -13,7 +13,7 @@ use crate::scene::SceneProperties;
 use crate::spatial_node::{ReferenceFrameInfo, SpatialNode, SpatialNodeDescriptor, SpatialNodeType, StickyFrameInfo};
 use crate::spatial_node::{SpatialNodeUid, ScrollFrameKind, SceneSpatialNode, SpatialNodeInfo, SpatialNodeUidKind};
 use std::{ops, u32};
-use crate::util::{FastTransform, LayoutToWorldFastTransform, MatrixHelpers, ScaleOffset, scale_factors};
+use crate::util::{FastTransform, LayoutToWorldFastTransform, MatrixHelpers, ScaleOffset, scale_factors, scale_offset_from_transform};
 use smallvec::SmallVec;
 use std::collections::hash_map::Entry;
 use crate::util::TransformedRectKind;
@@ -720,7 +720,7 @@ impl<Src, Dst> CoordinateSpaceMapping<Src, Dst> {
     pub fn into_transform(self) -> Transform3D<f32, Src, Dst> {
         match self {
             CoordinateSpaceMapping::Local => Transform3D::identity(),
-            CoordinateSpaceMapping::ScaleOffset(scale_offset) => scale_offset.to_transform(),
+            CoordinateSpaceMapping::ScaleOffset(scale_offset) => scale_offset.to_transform3d().cast_unit(),
             CoordinateSpaceMapping::Transform(transform) => transform,
         }
     }
@@ -760,7 +760,7 @@ impl<Src, Dst> CoordinateSpaceMapping<Src, Dst> {
     pub fn scale_factors(&self) -> (f32, f32) {
         match *self {
             CoordinateSpaceMapping::Local => (1.0, 1.0),
-            CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => (scale_offset.scale.x.abs(), scale_offset.scale.y.abs()),
+            CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => (scale_offset.sx.abs(), scale_offset.sy.abs()),
             CoordinateSpaceMapping::Transform(ref transform) => scale_factors(transform),
         }
     }
@@ -769,7 +769,7 @@ impl<Src, Dst> CoordinateSpaceMapping<Src, Dst> {
         match *self {
             CoordinateSpaceMapping::Local => Some(CoordinateSpaceMapping::Local),
             CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => {
-                Some(CoordinateSpaceMapping::ScaleOffset(scale_offset.inverse()))
+                scale_offset.inverse().map(CoordinateSpaceMapping::ScaleOffset)
             }
             CoordinateSpaceMapping::Transform(ref transform) => {
                 transform.inverse().map(CoordinateSpaceMapping::Transform)
@@ -1060,12 +1060,12 @@ impl SpatialTree {
         );
 
         if child.coordinate_system_id == parent.coordinate_system_id {
-            let scale_offset = child.content_transform.then(&parent.content_transform.inverse());
+            let scale_offset = child.content_transform.then(&parent.content_transform.inverse().unwrap());
             return CoordinateSpaceMapping::ScaleOffset(scale_offset);
         }
 
         let mut coordinate_system_id = child.coordinate_system_id;
-        let mut transform = child.content_transform.to_transform();
+        let mut transform = child.content_transform.to_transform3d().cast_unit();
 
         // we need to update the associated parameters of a transform in two cases:
         // 1) when the flattening happens, so that we don't lose that original 3D aspects
@@ -1090,7 +1090,9 @@ impl SpatialTree {
         transform = transform.then(
             &parent.content_transform
                 .inverse()
-                .to_transform(),
+                .unwrap()
+                .to_transform3d()
+                .cast_unit(),
         );
         if let Some(face) = visible_face {
             if transform.is_backface_visible() {
@@ -1137,7 +1139,8 @@ impl SpatialTree {
                 TransformScroll::Unscrolled => &child.viewport_transform,
             };
             let transform = scale_offset
-                .to_transform()
+                .to_transform3d()
+                .cast_unit()
                 .then(&system.world_transform);
 
             CoordinateSpaceMapping::Transform(transform)
@@ -1432,9 +1435,9 @@ fn calculate_snapping_transform(
                 PropertyBinding::Value(ref value) => {
                     // We can only get a ScaleOffset if the transform is 2d axis
                     // aligned.
-                    match ScaleOffset::from_transform(value) {
+                    match scale_offset_from_transform(value) {
                         Some(scale_offset) => {
-                            scale_offset.then(&ScaleOffset::from_offset(origin_offset.to_untyped()))
+                            scale_offset.then(&ScaleOffset::offset(origin_offset.x, origin_offset.y))
                         }
                         None => return None,
                     }
@@ -1444,7 +1447,7 @@ fn calculate_snapping_transform(
                 // We still want to incorporate the reference frame offset however.
                 // TODO(aosmond): Is there a better known starting point?
                 PropertyBinding::Binding(..) => {
-                    ScaleOffset::from_offset(origin_offset.to_untyped())
+                    ScaleOffset::offset(origin_offset.x, origin_offset.y)
                 }
             }
         }
