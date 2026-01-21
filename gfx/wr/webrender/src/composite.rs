@@ -17,7 +17,7 @@ use crate::tile_cache::TileId;
 use crate::prim_store::DeferredResolve;
 use crate::resource_cache::{ImageRequest, ResourceCache};
 use crate::segment::EdgeAaSegmentMask;
-use crate::util::{extract_inner_rect_safe, Preallocator, ScaleOffset, scale_offset_map_rect};
+use crate::util::{extract_inner_rect_safe, Preallocator, scale_offset_map_rect};
 use crate::tile_cache::PictureCacheDebugInfo;
 use crate::device::Device;
 use crate::space::SpaceMapper;
@@ -609,11 +609,11 @@ impl Default for CompositeStatePreallocator {
 #[cfg_attr(feature = "replay", derive(Deserialize))]
 pub struct CompositorTransform {
     // Map from local rect of a composite tile to the real backing surface coords
-    local_to_raster: ScaleOffset,
+    local_to_raster: LayoutToRasterScaleOffset2D,
     // Map from surface coords to the final device space position
-    raster_to_device: ScaleOffset,
+    raster_to_device: RasterToDeviceScaleOffset2D,
     // Combined local -> surface -> device transform
-    local_to_device: ScaleOffset,
+    local_to_device: LayoutToDeviceScaleOffset2D,
 }
 
 #[cfg_attr(feature = "capture", derive(Serialize))]
@@ -744,8 +744,8 @@ impl CompositeState {
     /// Register use of a transform for a picture cache tile or external surface
     pub fn register_transform(
         &mut self,
-        local_to_raster: ScaleOffset,
-        raster_to_device: ScaleOffset,
+        local_to_raster: LayoutToRasterScaleOffset2D,
+        raster_to_device: RasterToDeviceScaleOffset2Ds,
     ) -> CompositorTransformIndex {
         let index = CompositorTransformIndex(self.transforms.len());
 
@@ -783,7 +783,7 @@ impl CompositeState {
         transform_index: CompositorTransformIndex,
     ) -> DeviceRect {
         let transform = &self.transforms[transform_index.0];
-        scale_offset_map_rect(&transform.local_to_device, local_rect).round()
+        transform.local_to_device.transform_box(&local_rect.cast_unit()).round()
     }
 
     /// Calculate the device-space rect of a local compositor surface rect, normalized
@@ -796,8 +796,8 @@ impl CompositeState {
     ) -> DeviceRect {
         let transform = &self.transforms[transform_index.0];
 
-        let surface_bounds = scale_offset_map_rect(&transform.local_to_raster, local_bounds);
-        let surface_rect = scale_offset_map_rect(&transform.local_to_raster, local_sub_rect);
+        let surface_bounds = transform.local_to_raster.transform_box(local_bounds);
+        let surface_rect = transform.local_to_raster.transform_box(local_sub_rect);
 
         surface_rect
             .round_out()
@@ -811,7 +811,7 @@ impl CompositeState {
     pub fn get_device_transform(
         &self,
         transform_index: CompositorTransformIndex,
-    ) -> ScaleOffset {
+    ) -> LayoutToDeviceScaleOffset2D {
         let transform = &self.transforms[transform_index.0];
         transform.local_to_device
     }
@@ -820,7 +820,7 @@ impl CompositeState {
     pub fn get_compositor_transform(
         &self,
         transform_index: CompositorTransformIndex,
-    ) -> ScaleOffset {
+    ) -> RasterToDeviceScaleOffset2D {
         let transform = &self.transforms[transform_index.0];
         transform.raster_to_device
     }

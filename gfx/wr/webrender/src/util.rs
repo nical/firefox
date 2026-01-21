@@ -4,6 +4,7 @@
 
 use api::BorderRadius;
 use api::units::*;
+use euclid::ScaleOffset2D;
 use euclid::UnknownUnit;
 use euclid::{Point2D, Rect, Box2D, Size2D, Vector2D, point2, point3};
 use euclid::{Transform2D, Transform3D, Scale};
@@ -13,8 +14,6 @@ use std::borrow::Cow;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::mem::replace;
-
-pub type ScaleOffset = euclid::ScaleOffset2D<f32, UnknownUnit, UnknownUnit>;
 
 use crate::internal_types::FrameVec;
 
@@ -111,15 +110,55 @@ impl<T> VecHelper<T> for Vec<T> {
     }
 }
 
-pub trait ScaleOffsetExt {
-    fn map_size<F, T>(&self, size: &Size2D<f32, F>) -> Size2D<f32, T>;
+pub trait ScaleOffsetExt<Src, Dst> {
+    fn map_size(&self, size: &Size2D<f32, Src>) -> Size2D<f32, Dst>;
+    fn unmap_rect(&self, rect: &Box2D<f32, Dst>) -> Box2D<f32, Src>;
 }
 
-impl ScaleOffsetExt for ScaleOffset {
-    fn map_size<F, T>(&self, size: &Size2D<f32, F>) -> Size2D<f32, T> {
+impl<Src, Dst> ScaleOffsetExt<Src, Dst> for ScaleOffset2D<f32, Src, Dst> {
+    fn map_size(&self, size: &Size2D<f32, Src>) -> Size2D<f32, Dst> {
         Size2D::new(
             size.width * self.sx,
             size.height * self.sy,
+        )
+    }
+
+    fn unmap_rect(&self, rect: &Box2D<f32, Dst>) -> Box2D<f32, Src> {
+        // TODO(gw): The logic below can return an unexpected result if the supplied
+        //           rect is invalid (has size < 0). Since Gecko currently supplied
+        //           invalid rects in some cases, adding a max(0) here ensures that
+        //           mapping an invalid rect retains the property that rect.is_empty()
+        //           will return true (the mapped rect output will have size 0 instead
+        //           of a negative size). In future we could catch / assert / fix
+        //           these invalid rects earlier, and assert here instead.
+
+        let w = rect.width().max(0.0);
+        let h = rect.height().max(0.0);
+
+        let mut x0 = (rect.min.x - self.tx) / self.sx;
+        let mut y0 = (rect.min.y - self.ty) / self.sy;
+
+        let mut sx = w / self.sx;
+        let mut sy = h / self.sy;
+
+        // Handle negative scale. Previously, branchless float math was used to find the
+        // min / max vertices and size. However, that sequence of operations was producind
+        // additional floating point accuracy on android emulator builds, causing one test
+        // to fail an assert. Instead, we retain the same math as previously, and adjust
+        // the origin / size if required.
+
+        if self.sx < 0.0 {
+            x0 += sx;
+            sx = -sx;
+        }
+        if self.sy < 0.0 {
+            y0 += sy;
+            sy = -sy;
+        }
+
+        Box2D::from_origin_and_size(
+            Point2D::new(x0, y0),
+            Size2D::new(sx, sy),
         )
     }
 }
@@ -129,7 +168,7 @@ impl ScaleOffsetExt for ScaleOffset {
 // None if the matrix is not a pure scale / translation.
 pub fn scale_offset_from_transform<F, T>(
     m: &Transform3D<f32, F, T>,
-) -> Option<ScaleOffset> {
+) -> Option<ScaleOffset2D<f32, F, T>> {
 
     // To check that we have a pure scale / translation:
     // Every field must match an identity matrix, except:
@@ -154,46 +193,7 @@ pub fn scale_offset_from_transform<F, T>(
     Some(ScaleOffset::new(m.m11, m.m22, m.m41, m.m42))
 }
 
-pub fn scale_offset_unmap_rect<F, T>(tx: &ScaleOffset, rect: &Box2D<f32, F>) -> Box2D<f32, T> {
-    // TODO(gw): The logic below can return an unexpected result if the supplied
-    //           rect is invalid (has size < 0). Since Gecko currently supplied
-    //           invalid rects in some cases, adding a max(0) here ensures that
-    //           mapping an invalid rect retains the property that rect.is_empty()
-    //           will return true (the mapped rect output will have size 0 instead
-    //           of a negative size). In future we could catch / assert / fix
-    //           these invalid rects earlier, and assert here instead.
-
-    let w = rect.width().max(0.0);
-    let h = rect.height().max(0.0);
-
-    let mut x0 = (rect.min.x - tx.tx) / tx.sx;
-    let mut y0 = (rect.min.y - tx.ty) / tx.sy;
-
-    let mut sx = w / tx.sx;
-    let mut sy = h / tx.sy;
-
-    // Handle negative scale. Previously, branchless float math was used to find the
-    // min / max vertices and size. However, that sequence of operations was producind
-    // additional floating point accuracy on android emulator builds, causing one test
-    // to fail an assert. Instead, we retain the same math as previously, and adjust
-    // the origin / size if required.
-
-    if tx.sx < 0.0 {
-        x0 += sx;
-        sx = -sx;
-    }
-    if tx.sy < 0.0 {
-        y0 += sy;
-        sy = -sy;
-    }
-
-    Box2D::from_origin_and_size(
-        Point2D::new(x0, y0),
-        Size2D::new(sx, sy),
-    )
-}
-
-pub fn scale_offset_map_rect<F, T>(tx: &ScaleOffset, rect: &Box2D<f32, F>) -> Box2D<f32, T> {
+pub fn scale_offset_map_rect<F, T>(tx: &ScaleOffset2D<f32, F, T>, rect: &Box2D<f32, F>) -> Box2D<f32, T> {
     let w = rect.width().max(0.0);
     let h = rect.height().max(0.0);
 
@@ -218,29 +218,29 @@ pub fn scale_offset_map_rect<F, T>(tx: &ScaleOffset, rect: &Box2D<f32, F>) -> Bo
     )
 }
 
-pub fn scale_offset_map_point<F, T>(tx: &ScaleOffset, point: &Point2D<f32, F>) -> Point2D<f32, T> {
+pub fn scale_offset_map_point<F, T>(tx: &ScaleOffset2D<f32, F, T>, point: &Point2D<f32, F>) -> Point2D<f32, T> {
     Point2D::new(
         point.x * tx.sx + tx.tx,
         point.y * tx.sy + tx.ty,
     )
 }
 
-pub fn scale_offset_unmap_point<F, T>(tx: &ScaleOffset, point: &Point2D<f32, F>) -> Point2D<f32, T> {
+pub fn scale_offset_unmap_point<F, T>(tx: &ScaleOffset2D<f32, F, T>, point: &Point2D<f32, F>) -> Point2D<f32, T> {
     Point2D::new(
         (point.x - tx.tx) / tx.sx,
         (point.y - tx.ty) / tx.sy,
     )
 }
 
-pub fn scale_offset_map_vector<F, T>(tx: &ScaleOffset, v: &Vector2D<f32, F>) -> Vector2D<f32, T> {
+pub fn scale_offset_map_vector<F, T>(tx: &ScaleOffset2D<f32, F, T>, v: &Vector2D<f32, F>) -> Vector2D<f32, T> {
     Vector2D::new(
         v.x * tx.sx,
         v.y * tx.sy,
     )
 }
 
-pub fn scale_offset_pre_offset(s: &ScaleOffset, offset: Vector2D<f32, euclid::UnknownUnit>) -> ScaleOffset {
-    ScaleOffset::new(
+pub fn scale_offset_pre_offset<F, T>(s: &ScaleOffset2D<f32, F, T>, offset: Vector2D<f32, euclid::UnknownUnit>) -> ScaleOffset2D<f32, F, T> {
+    ScaleOffset2D::new(
         s.sx,
         s.sy,
         offset.x * s.sx + s.tx,
@@ -653,7 +653,7 @@ pub mod test {
         assert!(mapped_rect.max.x.approx_eq(&xf_rect.max.x));
         assert!(mapped_rect.max.y.approx_eq(&xf_rect.max.y));
 
-        let unmapped_rect: LayoutRect = scale_offset_unmap_rect(&so, &mapped_rect);
+        let unmapped_rect: LayoutRect = so.unmap_rect(&mapped_rect);
         assert!(unmapped_rect.min.x.approx_eq(&local_rect.min.x));
         assert!(unmapped_rect.min.y.approx_eq(&local_rect.min.y));
         assert!(unmapped_rect.max.x.approx_eq(&local_rect.max.x));
@@ -895,7 +895,7 @@ impl<Src, Dst> FastTransform<Src, Dst> {
         FastTransform::Offset(offset)
     }
 
-    pub fn with_scale_offset(scale_offset: ScaleOffset) -> Self {
+    pub fn with_scale_offset(scale_offset: ScaleOffset2D<f32, Src, Dst>) -> Self {
         if scale_offset.sx == 1.0 && scale_offset.sy == 1.0 {
             FastTransform::Offset(Vector2D::new(scale_offset.tx, scale_offset.ty))
         } else {

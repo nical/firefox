@@ -129,7 +129,7 @@ use smallvec::SmallVec;
 use std::{mem, u8, u32};
 use std::ops::Range;
 use crate::picture_textures::PictureCacheTextureHandle;
-use crate::util::{MaxRect, Recycler, ScaleOffset, scale_offset_from_transform, MatrixHelpers};
+use crate::util::{MaxRect, Recycler, scale_offset_from_transform, MatrixHelpers};
 use crate::tile_cache::{SliceDebugInfo, TileDebugInfo, DirtyTileDebugInfo};
 use crate::tile_cache::{SliceId, TileCacheInstance, TileSurface, NativeSurface};
 use crate::tile_cache::{BackdropKind, BackdropSurface};
@@ -1531,12 +1531,12 @@ pub fn get_relative_scale_offset(
     child_spatial_node_index: SpatialNodeIndex,
     parent_spatial_node_index: SpatialNodeIndex,
     spatial_tree: &SpatialTree,
-) -> ScaleOffset {
+) -> LayoutScaleOffset {
     let transform = spatial_tree.get_relative_transform(
         child_spatial_node_index,
         parent_spatial_node_index,
     );
-    let scale_offset = match transform {
+    let mut scale_offset = match transform {
         CoordinateSpaceMapping::Local => ScaleOffset::identity(),
         CoordinateSpaceMapping::ScaleOffset(scale_offset) => scale_offset,
         CoordinateSpaceMapping::Transform(m) => {
@@ -1547,7 +1547,10 @@ pub fn get_relative_scale_offset(
     // Compositors expect things to be aligned on device pixels. Logic at a higher level ensures that is
     // true, but floating point inaccuracy can sometimes result in small differences, so remove
     // them here.
-    ScaleOffset::new(scale_offset.sx, scale_offset.sy, scale_offset.tx.round(), scale_offset.ty.round())
+    scale_offset.tx.round();
+    scale_offset.ty.round();
+
+    scale_offset
 }
 
 /// Update dirty rects, ensure that tiles have backing surfaces and build

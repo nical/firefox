@@ -13,7 +13,7 @@
 //! in the context of coordinate systems.
 
 pub use app_units::Au;
-use euclid::{Length, Rect, Scale, Size2D, Transform3D, Translation2D};
+use euclid::{Length, Rect, Scale, ScaleOffset2D, Size2D, Transform3D, Translation2D};
 use euclid::{Point2D, Point3D, Vector2D, Vector3D, SideOffsets2D, Box2D};
 use euclid::HomogeneousVector;
 use peek_poke::PeekPoke;
@@ -90,6 +90,7 @@ pub type LayoutVector2D = Vector2D<f32, LayoutPixel>;
 pub type LayoutVector3D = Vector3D<f32, LayoutPixel>;
 pub type LayoutSize = Size2D<f32, LayoutPixel>;
 pub type LayoutSideOffsets = SideOffsets2D<f32, LayoutPixel>;
+pub type LayoutScaleOffset2D = ScaleOffset2D<f32, LayoutPixel, LayoutPixel>;
 
 pub type LayoutIntRect = Box2D<i32, LayoutPixel>;
 pub type LayoutIntPoint = Point2D<i32, LayoutPixel>;
@@ -149,6 +150,18 @@ pub type RasterToLayoutTransform = Transform3D<f32, RasterPixel, LayoutPixel>;
 
 pub type PictureToRasterTransform = Transform3D<f32, PicturePixel, RasterPixel>;
 pub type RasterToPictureTransform = Transform3D<f32, RasterPixel, PicturePixel>;
+
+pub type LayoutToRasterScaleOffset2D = ScaleOffset2D<f32, LayoutPixel, RasterPixel>;
+pub type RasterToLayoutScaleOffset2D = ScaleOffset2D<f32, RasterPixel, LayoutPixel>;
+
+pub type LayoutToDeviceScaleOffset2D = ScaleOffset2D<f32, LayoutPixel, DevicePixel>;
+pub type DeviceToLayoutScaleOffset2D = ScaleOffset2D<f32, DevicePixel, LayoutPixel>;
+
+pub type LayoutToVisScaleOffset2D = ScaleOffset2D<f32, LayoutPixel, VisPixel>;
+pub type VisToLayoutScaleOffset2D = ScaleOffset2D<f32, VisPixel, LayoutPixel>;
+
+pub type DeviceToRasterScaleOffset2D = ScaleOffset2D<f32, DevicePixel, RasterPixel>;
+pub type RasterToDeviceScaleOffset2D = ScaleOffset2D<f32, RasterPixel, DevicePixel>;
 
 /// Scaling ratio from picture pixels to raster pixels (e.g. if scaling a picture surface up/down).
 pub type RasterPixelScale = Scale<f32, PicturePixel, RasterPixel>;

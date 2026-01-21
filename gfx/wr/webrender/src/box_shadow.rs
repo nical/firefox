@@ -20,7 +20,7 @@ use crate::spatial_tree::SpatialNodeIndex;
 use crate::gpu_types::{BoxShadowStretchMode, TransformPaletteId, UvRectKind, BlurEdgeMode};
 use crate::render_task_graph::RenderTaskId;
 use crate::internal_types::LayoutPrimitiveInfo;
-use crate::util::{extract_inner_rect_k, ScaleOffset};
+use crate::util::{extract_inner_rect_k};
 
 pub type BoxShadowKey = PrimKey<BoxShadow>;
 
@@ -106,7 +106,7 @@ impl PatternBuilder for BoxShadowTemplate {
             color_pattern.base_color,
             color_pattern.texture_input.task_id,
             &[],
-            ScaleOffset::identity(),
+            DeviceToLayoutScaleOffset2D::identity(),
         );
 
         let pattern_task_id = state.rg_builder.add().init(RenderTask::new_dynamic(

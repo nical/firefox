@@ -34,7 +34,7 @@ use crate::space::SpaceMapper;
 use crate::visibility::{PrimitiveVisibilityFlags, VisibilityState};
 use smallvec::SmallVec;
 use std::{f32, i32, usize};
-use crate::util::{project_rect, MaxRect, TransformedRectKind, ScaleOffset, scale_offset_unmap_rect, MatrixHelpers};
+use crate::util::{project_rect, MaxRect, TransformedRectKind, ScaleOffsetExt, MatrixHelpers};
 use crate::segment::EdgeAaSegmentMask;
 
 
@@ -1012,7 +1012,7 @@ impl BatchBuilder {
                         let map_local_to_raster = SpaceMapper::new_with_target(
                             root_spatial_node_index,
                             surface.surface_spatial_node_index,
-                            LayoutRect::max_rect(),
+                            RasterRect::max_rect(),
                             ctx.spatial_tree,
                         );
 
@@ -1026,12 +1026,12 @@ impl BatchBuilder {
                         let tx = raster_rect.min.x - sx * prim_rect.min.x;
                         let ty = raster_rect.min.y - sy * prim_rect.min.y;
 
-                        let transform = ScaleOffset::new(sx, sy, tx, ty);
+                        let transform = LayoutToRasterScaleOffset2D::new(sx, sy, tx, ty);
 
                         let raster_clip_rect = map_local_to_raster
                             .map(&prim_info.clip_chain.local_clip_rect)
                             .unwrap();
-                        local_clip_rect = scale_offset_unmap_rect(&transform, &raster_clip_rect);
+                        local_clip_rect = transform.unmap_rect(&raster_clip_rect);
 
                         transforms.get_custom(transform.to_transform3d().cast_unit())
                     };

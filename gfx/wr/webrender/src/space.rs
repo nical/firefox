@@ -12,7 +12,7 @@ use euclid::{Transform3D, Box2D, Point2D, Vector2D};
 use api::units::*;
 use crate::spatial_tree::{SpatialTree, CoordinateSpaceMapping, SpatialNodeIndex, VisibleFace, SpatialNodeContainer};
 use crate::util::project_rect;
-use crate::util::{MatrixHelpers, ScaleOffset, RectHelpers, PointHelpers, scale_offset_map_rect, scale_offset_unmap_rect, scale_offset_map_point, scale_offset_unmap_point, scale_offset_map_vector};
+use crate::util::{MatrixHelpers, RectHelpers, ScaleOffsetExt, PointHelpers, scale_offset_map_rect, scale_offset_map_point, scale_offset_unmap_point, scale_offset_map_vector};
 
 
 #[derive(Debug, Clone)]
@@ -66,7 +66,8 @@ impl<F, T> SpaceMapper<F, T> where F: fmt::Debug {
             CoordinateSpaceMapping::Local
         } else if ref_spatial_node.coordinate_system_id == target_spatial_node.coordinate_system_id {
             let scale_offset = target_spatial_node.content_transform
-                .then(&ref_spatial_node.content_transform.inverse().unwrap());
+                .then(&ref_spatial_node.content_transform.inverse().unwrap())
+                .cast_unit();
             CoordinateSpaceMapping::ScaleOffset(scale_offset)
         } else {
             let transform = spatial_tree
@@ -104,7 +105,7 @@ impl<F, T> SpaceMapper<F, T> where F: fmt::Debug {
                 Some(rect.cast_unit())
             }
             CoordinateSpaceMapping::ScaleOffset(ref scale_offset) => {
-                Some(scale_offset_unmap_rect(scale_offset, rect))
+                Some(scale_offset.unmap_rect(rect))
             }
             CoordinateSpaceMapping::Transform(ref transform) => {
                 transform.inverse_rect_footprint(rect)
@@ -251,7 +252,7 @@ impl SpaceSnapper {
             Some(ref scale_offset) => {
                 let snapped_device_rect: DeviceRect = scale_offset_map_rect(scale_offset, rect);
                 let snapped_device_rect = snapped_device_rect.snap();
-                scale_offset_unmap_rect(scale_offset, &snapped_device_rect)
+                scale_offset.unmap_rect(&snapped_device_rect)
             }
             None => *rect,
         }

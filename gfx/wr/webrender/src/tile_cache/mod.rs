@@ -41,7 +41,7 @@ use crate::scene_building::SliceFlags;
 use crate::space::SpaceMapper;
 use crate::spatial_tree::{SpatialNodeIndex, SpatialTree};
 use crate::surface::{SubpixelMode, SurfaceInfo};
-use crate::util::{ScaleOffset, MatrixHelpers, MaxRect, ScaleOffsetExt, scale_offset_map_rect};
+use crate::util::{MatrixHelpers, MaxRect, ScaleOffsetExt, scale_offset_map_rect};
 use crate::visibility::{FrameVisibilityContext, FrameVisibilityState, VisibilityState, PrimitiveVisibilityFlags};
 use euclid::approxeq::ApproxEq;
 use euclid::Box2D;
@@ -1896,12 +1896,12 @@ impl TileCacheInstance {
                     }
                     ClipSpaceConversion::ScaleOffset(scale_offset) => {
                         (
-                            scale_offset_map_rect(&scale_offset, &rect),
+                            scale_offset.transform_box(&rect),
                             BorderRadius {
-                                top_left: scale_offset.map_size(&radius.top_left),
-                                top_right: scale_offset.map_size(&radius.top_right),
-                                bottom_left: scale_offset.map_size(&radius.bottom_left),
-                                bottom_right: scale_offset.map_size(&radius.bottom_right),
+                                top_left: scale_offset_map_size(&scale_offset, &radius.top_left).cast_unit(),
+                                top_right: scale_offset_map_size(&scale_offset, &radius.top_right).cast_unit(),
+                                bottom_left: scale_offset_map_size(&scale_offset, &radius.bottom_left).cast_unit(),
+                                bottom_right: scale_offset_map_size(&scale_offset, &radius.bottom_right).cast_unit(),
                             },
                         )
                     }

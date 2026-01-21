@@ -24,7 +24,7 @@ use crate::segment::EdgeAaSegmentMask;
 use crate::space::SpaceMapper;
 use crate::spatial_tree::{CoordinateSpaceMapping, SpatialNodeIndex, SpatialTree};
 use crate::surface::SurfaceBuilder;
-use crate::util::{extract_inner_rect_k, MaxRect, ScaleOffset, scale_offset_map_rect, ScaleOffsetExt};
+use crate::util::{extract_inner_rect_k, MaxRect, scale_offset_map_rect, ScaleOffsetExt};
 use crate::visibility::compute_conservative_visible_rect;
 
 /// This type reflects the unfortunate situation with quad coordinates where we
@@ -369,7 +369,7 @@ fn prepare_quad_impl(
             pattern.base_color,
             pattern.texture_input.task_id,
             &[],
-            ScaleOffset::identity(),
+            DeviceToLayoutScaleOffset2D::identity(),
         );
 
         // Render the primitive as a single instance. Coordinates are provided to the
@@ -451,7 +451,7 @@ fn prepare_quad_impl(
                 pattern.base_color,
                 pattern.texture_input.task_id,
                 &[],
-                ScaleOffset::identity(),
+                DeviceToLayoutScaleOffset2D::identity(),
             );
 
             let cache_key = cache_key.as_ref().map(|key| {
@@ -717,7 +717,7 @@ fn prepare_quad_impl(
                             pattern.base_color,
                             pattern.texture_input.task_id,
                             &[],
-                            ScaleOffset::identity(),
+                            DeviceToLayoutScaleOffset2D::identity(),
                         );
 
                         let task_id = add_render_task_with_mask(
@@ -897,7 +897,7 @@ fn prepare_quad_impl(
                             pattern.base_color,
                             pattern.texture_input.task_id,
                             &[],
-                            ScaleOffset::identity(),
+                            DeviceToLayoutScaleOffset2D::identity(),
                         );
 
                         let task_id = add_render_task_with_mask(
@@ -1143,7 +1143,7 @@ fn add_render_task_with_mask(
 
 fn add_pattern_prim(
     pattern: &Pattern,
-    pattern_transform: ScaleOffset,
+    pattern_transform: DeviceToLayoutScaleOffset2D,
     prim_instance_index: PrimitiveInstanceIndex,
     rect: LayoutOrDeviceRect,
     clip_rect: LayoutOrDeviceRect,
@@ -1240,7 +1240,7 @@ pub fn write_prim_blocks(
     pattern_base_color: ColorF,
     pattern_texture_input: RenderTaskId,
     segments: &[QuadSegment],
-    pattern_scale_offset: ScaleOffset,
+    pattern_scale_offset: DeviceToLayoutScaleOffset2D,
 ) -> GpuBufferAddress {
     let mut writer = builder.write_blocks(5 + segments.len() * 2);
 

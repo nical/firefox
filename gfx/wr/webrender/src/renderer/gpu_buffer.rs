@@ -12,9 +12,9 @@ use std::i32;
 use crate::gpu_types::UvRectKind;
 use crate::internal_types::{FrameId, FrameMemory, FrameVec};
 use crate::renderer::MAX_VERTEX_TEXTURE_WIDTH;
-use crate::util::ScaleOffset;
 use api::units::{DeviceIntPoint, DeviceIntRect, DeviceIntSize, DeviceRect, LayoutRect, PictureRect};
 use api::{PremultipliedColorF, ImageFormat};
+use euclid::ScaleOffset2D;
 use crate::device::Texel;
 use crate::render_task_graph::{RenderTaskGraph, RenderTaskId};
 
@@ -185,7 +185,7 @@ impl Into<GpuBufferBlockF> for crate::quad::LayoutOrDeviceRect {
     }
 }
 
-impl Into<GpuBufferBlockF> for ScaleOffset {
+impl<Src, Dst> Into<GpuBufferBlockF> for ScaleOffset2D<f32, Src, Dst> {
     fn into(self) -> GpuBufferBlockF {
         GpuBufferBlockF {
             data: [

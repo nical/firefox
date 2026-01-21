@@ -12,7 +12,7 @@ use crate::spatial_tree::{CoordinateSystem, SpatialNodeIndex, TransformUpdateSta
 use crate::spatial_tree::CoordinateSystemId;
 use euclid::{Vector2D, SideOffsets2D};
 use crate::scene::SceneProperties;
-use crate::util::{LayoutFastTransform, MatrixHelpers, ScaleOffset, TransformedRectKind, scale_offset_from_transform, scale_offset_pre_offset};
+use crate::util::{LayoutFastTransform, MatrixHelpers, TransformedRectKind, scale_offset_from_transform, scale_offset_pre_offset};
 use crate::util::{PointHelpers, VectorHelpers};
 
 /// The kind of a spatial node uid. These are required because we currently create external
@@ -138,7 +138,7 @@ pub struct SpatialNodeInfo<'a> {
 
     /// Snapping scale/offset relative to the coordinate system. If None, then
     /// we should not snap entities bound to this spatial node.
-    pub snapping_transform: Option<ScaleOffset>,
+    pub snapping_transform: Option<LayoutScaleOffset2D>,
 }
 
 /// Scene building specific representation of a spatial node, which is a much
@@ -149,7 +149,7 @@ pub struct SpatialNodeInfo<'a> {
 pub struct SceneSpatialNode {
     /// Snapping scale/offset relative to the coordinate system. If None, then
     /// we should not snap entities bound to this spatial node.
-    pub snapping_transform: Option<ScaleOffset>,
+    pub snapping_transform: Option<LayoutScaleOffset2D>,
 
     /// Parent spatial node. If this is None, we are the root node.
     pub parent: Option<SpatialNodeIndex>,
@@ -268,7 +268,7 @@ pub struct SpatialNode {
 
     /// Snapping scale/offset relative to the coordinate system. If None, then
     /// we should not snap entities bound to this spatial node.
-    pub snapping_transform: Option<ScaleOffset>,
+    pub snapping_transform: Option<LayoutScaleOffset2D>,
 
     /// The axis-aligned coordinate system id of this node.
     pub coordinate_system_id: CoordinateSystemId,
@@ -411,7 +411,7 @@ impl SpatialNode {
 
         match self.node_type {
             SpatialNodeType::ReferenceFrame(ref mut info) => {
-                let mut cs_scale_offset = ScaleOffset::identity();
+                let mut cs_scale_offset = LayoutScaleOffset::identity();
                 let mut coordinate_system_id = state.current_coordinate_system_id;
 
                 // Resolve the transform against any property bindings.

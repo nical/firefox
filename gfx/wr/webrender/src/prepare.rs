@@ -36,7 +36,7 @@ use crate::render_task_cache::RenderTaskCacheKeyKind;
 use crate::render_task_cache::{RenderTaskCacheKey, to_cache_size, RenderTaskParent};
 use crate::render_task::{EmptyTask, MaskSubPass, RenderTask, RenderTaskKind, SubPass};
 use crate::segment::SegmentBuilder;
-use crate::util::{clamp_to_scale_factor, ScaleOffset};
+use crate::util::{clamp_to_scale_factor};
 use crate::visibility::{compute_conservative_visible_rect, PrimitiveVisibility, VisibilityState};
 
 
@@ -1043,7 +1043,7 @@ fn prepare_interned_prim_for_render(
                     pattern.base_color,
                     pattern.texture_input.task_id,
                     &[],
-                    ScaleOffset::identity(),
+                    DeviceToLayoutScaleOffset2D::identity(),
                 );
 
                 // Handle masks on the source. This is the common case, and occurs for:

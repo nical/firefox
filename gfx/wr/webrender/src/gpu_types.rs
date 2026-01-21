@@ -16,7 +16,7 @@ use crate::render_task::RenderTaskAddress;
 use crate::render_task_graph::RenderTaskId;
 use crate::renderer::{GpuBufferAddress, GpuBufferBuilderF, GpuBufferHandle, GpuBufferWriterF, GpuBufferDataF, GpuBufferDataI, GpuBufferWriterI, ShaderColorMode};
 use std::i32;
-use crate::util::{MatrixHelpers, ScaleOffset, TransformedRectKind};
+use crate::util::{MatrixHelpers, TransformedRectKind};
 use glyph_rasterizer::SubpixelDirection;
 use crate::util::pack_as_float;
 
@@ -670,7 +670,7 @@ pub struct QuadPrimitive {
     // TODO: This gets translated into a Rect just before upload.
     // It would be better to send the gpu buffer address to the shader.
     pub input_task: RenderTaskId,
-    pub pattern_scale_offset: ScaleOffset,
+    pub pattern_scale_offset: DeviceToLayoutScaleOffset2D,
     /// Base color of the pattern.
     pub color: PremultipliedColorF,
 }

@@ -112,7 +112,7 @@ use crate::render_task_graph::RenderTaskGraphBuilder;
 use crate::resource_cache::{ImageRequest, ResourceCache};
 use crate::scene_builder_thread::Interners;
 use crate::space::SpaceMapper;
-use crate::util::{clamp_to_scale_factor, extract_inner_rect_safe, project_rect, MatrixHelpers, MaxRect, ScaleOffset, scale_offset_map_rect, scale_offset_unmap_rect};
+use crate::util::{clamp_to_scale_factor, extract_inner_rect_safe, project_rect, MatrixHelpers, MaxRect, ScaleOffsetExt, scale_offset_map_rect};
 use euclid::approxeq::ApproxEq;
 use std::{iter, ops, u32, mem};
 
@@ -1029,7 +1029,7 @@ impl ClipNodeRange {
 #[cfg_attr(feature = "capture", derive(Serialize))]
 pub enum ClipSpaceConversion {
     Local,
-    ScaleOffset(ScaleOffset),
+    ScaleOffset(LayoutToVisScaleOffset2D),
     Transform(LayoutToVisTransform),
 }
 
@@ -1537,7 +1537,7 @@ impl ClipStore {
                 }
                 ClipSpaceConversion::ScaleOffset(ref scale_offset) => {
                     has_non_local_clips = true;
-                    node.item.kind.get_clip_result(&scale_offset_unmap_rect(scale_offset, &local_bounding_rect))
+                    node.item.kind.get_clip_result(&scale_offset.unmap_rect(&local_bounding_rect))
                 }
                 ClipSpaceConversion::Transform(ref transform) => {
                     has_non_local_clips = true;

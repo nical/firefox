@@ -5,7 +5,7 @@
 use api::{ExternalScrollId, PropertyBinding, ReferenceFrameKind, TransformStyle, PropertyBindingId};
 use api::{APZScrollGeneration, HasScrollLinkedEffect, PipelineId, SampledScrollOffset, SpatialTreeItemKey};
 use api::units::*;
-use euclid::Transform3D;
+use euclid::{ScaleOffset2D, Transform3D};
 use crate::gpu_types::TransformPalette;
 use crate::internal_types::{FastHashMap, FastHashSet, FrameMemory, PipelineInstanceId};
 use crate::print_tree::{PrintableTree, PrintTree, PrintTreePrinter};
@@ -13,7 +13,7 @@ use crate::scene::SceneProperties;
 use crate::spatial_node::{ReferenceFrameInfo, SpatialNode, SpatialNodeDescriptor, SpatialNodeType, StickyFrameInfo};
 use crate::spatial_node::{SpatialNodeUid, ScrollFrameKind, SceneSpatialNode, SpatialNodeInfo, SpatialNodeUidKind};
 use std::{ops, u32};
-use crate::util::{FastTransform, LayoutToWorldFastTransform, MatrixHelpers, ScaleOffset, scale_factors, scale_offset_from_transform};
+use crate::util::{FastTransform, LayoutToWorldFastTransform, MatrixHelpers, scale_factors, scale_offset_from_transform};
 use smallvec::SmallVec;
 use std::collections::hash_map::Entry;
 use crate::util::TransformedRectKind;
@@ -120,14 +120,14 @@ pub trait SpatialNodeContainer {
     fn get_snapping_info(
         &self,
         parent_index: Option<SpatialNodeIndex>
-    ) -> Option<ScaleOffset> {
+    ) -> Option<LayoutScaleOffset2D> {
         match parent_index {
             Some(parent_index) => {
                 let node_info = self.get_node_info(parent_index);
                 node_info.snapping_transform
             }
             None => {
-                Some(ScaleOffset::identity())
+                Some(LayoutScaleOffset2D::identity())
             }
         }
     }
@@ -687,7 +687,7 @@ pub struct TransformUpdateState {
     pub current_coordinate_system_id: CoordinateSystemId,
 
     /// Scale and offset from the coordinate system that started this compatible coordinate system.
-    pub coordinate_system_relative_scale_offset: ScaleOffset,
+    pub coordinate_system_relative_scale_offset: LayoutScaleOffset2D,
 
     /// True if this node is transformed by an invertible transform.  If not, display items
     /// transformed by this node will not be displayed and display items not transformed by this
@@ -712,7 +712,7 @@ pub struct TransformUpdateState {
 #[derive(Debug, Clone)]
 pub enum CoordinateSpaceMapping<Src, Dst> {
     Local,
-    ScaleOffset(ScaleOffset),
+    ScaleOffset(ScaleOffset2D<f32, Src, Dst>),
     Transform(Transform3D<f32, Src, Dst>),
 }
 
@@ -720,7 +720,7 @@ impl<Src, Dst> CoordinateSpaceMapping<Src, Dst> {
     pub fn into_transform(self) -> Transform3D<f32, Src, Dst> {
         match self {
             CoordinateSpaceMapping::Local => Transform3D::identity(),
-            CoordinateSpaceMapping::ScaleOffset(scale_offset) => scale_offset.to_transform3d().cast_unit(),
+            CoordinateSpaceMapping::ScaleOffset(scale_offset) => scale_offset.to_transform3d(),
             CoordinateSpaceMapping::Transform(transform) => transform,
         }
     }
@@ -1206,7 +1206,7 @@ impl SpatialTree {
             nearest_scrolling_ancestor_offset: LayoutVector2D::zero(),
             nearest_scrolling_ancestor_viewport: LayoutRect::zero(),
             current_coordinate_system_id: CoordinateSystemId::root(),
-            coordinate_system_relative_scale_offset: ScaleOffset::identity(),
+            coordinate_system_relative_scale_offset: LayoutScaleOffset2D::identity(),
             invertible: true,
             preserves_3d: false,
             is_ancestor_or_self_zooming: false,
