@@ -1494,7 +1494,7 @@ pub fn prepare_clip_task(
         QuadFlags::empty()
     };
 
-    
+
     rg_builder.push_sub_task(
         sub_tasks,
         SubTask::RectangleClip(RectangleClipSubTask {
