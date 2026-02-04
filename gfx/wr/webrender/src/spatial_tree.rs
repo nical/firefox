@@ -1057,59 +1057,57 @@ impl SpatialTree {
     /// combined transform is flattened, we see the back face.
     pub fn get_relative_transform_with_face(
         &self,
-        child_index: SpatialNodeIndex,
-        parent_index: SpatialNodeIndex,
+        from_index: SpatialNodeIndex,
+        to_index: SpatialNodeIndex,
         mut visible_face: Option<&mut VisibleFace>,
     ) -> CoordinateSpaceMapping<LayoutPixel, LayoutPixel> {
-        if child_index == parent_index {
+        if from_index == to_index {
             return CoordinateSpaceMapping::Local;
         }
 
-        let child = self.get_spatial_node(child_index);
-        let parent = self.get_spatial_node(parent_index);
+        let from = self.get_spatial_node(from_index);
+        let to = self.get_spatial_node(to_index);
 
-        // TODO(gw): We expect this never to fail, but it's possible that it might due to
-        //           either (a) a bug in WR / Gecko, or (b) some obscure real-world content
-        //           that we're unaware of. If we ever hit this, please open a bug with any
-        //           repro steps!
-        assert!(
-            child.coordinate_system_id.0 >= parent.coordinate_system_id.0,
-            "bug: this is an unexpected case - please open a bug and talk to #gfx team!",
-        );
-
-        if child.coordinate_system_id == parent.coordinate_system_id {
-            let scale_offset = child.content_transform.then(&parent.content_transform.inverse());
+        if from.coordinate_system_id == to.coordinate_system_id {
+            let scale_offset = from.content_transform.then(&to.content_transform.inverse());
             return CoordinateSpaceMapping::ScaleOffset(scale_offset);
         }
 
-        let mut coordinate_system_id = child.coordinate_system_id;
-        let mut transform = child.content_transform.to_transform();
+        let mut from_coordinate_system_id = from.coordinate_system_id;
+        let mut to_coordinate_system_id = to.coordinate_system_id;
+        let mut from_transform = from.content_transform.to_transform();
+        let mut to_inverse_transform = to.content_transform.inverse().to_transform();
 
         // we need to update the associated parameters of a transform in two cases:
         // 1) when the flattening happens, so that we don't lose that original 3D aspects
         // 2) when we reach the end of iteration, so that our result is up to date
 
-        while coordinate_system_id != parent.coordinate_system_id {
-            let coord_system = &self.coord_systems[coordinate_system_id.0 as usize];
+        while from_coordinate_system_id != to_coordinate_system_id {
+            if from_coordinate_system_id > to_coordinate_system_id {
+                let coord_system = &self.coord_systems[from_coordinate_system_id.0 as usize];
 
-            if coord_system.should_flatten {
-                if let Some(ref mut face) = visible_face {
-                    if transform.is_backface_visible() {
-                        **face = VisibleFace::Back;
+                if coord_system.should_flatten {
+                    if let Some(ref mut face) = visible_face {
+                        if from_transform.is_backface_visible() {
+                            **face = VisibleFace::Back;
+                        }
                     }
+                    from_transform.flatten_z_output();
                 }
-                transform.flatten_z_output();
-            }
 
-            coordinate_system_id = coord_system.parent.expect("invalid parent!");
-            transform = transform.then(&coord_system.transform);
+                from_coordinate_system_id = coord_system.parent.expect("invalid parent!");
+                from_transform = from_transform.then(&coord_system.transform);
+            } else {
+                let coord_system = &self.coord_systems[to_coordinate_system_id.0 as usize];
+                // Flattened 3d transforms are not (generally) invertible.
+                // TODO: what do we need to do with visible_face in thsi branch?
+                assert!(!coord_system.should_flatten);
+                to_coordinate_system_id = coord_system.parent.expect("invalid parent!");
+                to_inverse_transform = coord_system.transform.inverse().unwrap().then(&to_inverse_transform);
+            }
         }
 
-        transform = transform.then(
-            &parent.content_transform
-                .inverse()
-                .to_transform(),
-        );
+        let transform = from_transform.then(&to_inverse_transform);
         if let Some(face) = visible_face {
             if transform.is_backface_visible() {
                 *face = VisibleFace::Back;
