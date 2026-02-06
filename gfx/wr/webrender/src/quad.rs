@@ -1879,14 +1879,14 @@ pub fn add_to_batch<F>(
             };
             f(aa_batch_key, instance.into());
         }
-        if edge_flags.contains(EdgeMask::RIGHT) {
+        if edge_flags.contains(EdgeMask::TOP) {
             let instance = QuadInstance {
                 part_index: PartIndex::Top as u8,
                 ..instance
             };
             f(aa_batch_key, instance.into());
         }
-        if edge_flags.contains(EdgeMask::TOP) {
+        if edge_flags.contains(EdgeMask::RIGHT) {
             let instance = QuadInstance {
                 part_index: PartIndex::Right as u8,
                 ..instance
@@ -1903,6 +1903,7 @@ pub fn add_to_batch<F>(
 
         instance = QuadInstance {
             part_index: PartIndex::Center as u8,
+            edge_flags: 0,
             ..instance
         };
 
