@@ -629,6 +629,7 @@ pub struct Shaders {
 
     ps_split_composite: ShaderHandle,
     ps_quad_textured: ShaderHandle,
+    ps_quad_repeat: ShaderHandle,
     ps_quad_gradient: ShaderHandle,
     #[allow(unused)] ps_quad_radial_gradient: ShaderHandle,
     #[allow(unused)] ps_quad_conic_gradient: ShaderHandle,
@@ -834,6 +835,13 @@ impl Shaders {
         let ps_quad_textured = loader.create_shader(
             ShaderKind::Primitive,
             "ps_quad_textured",
+            &[],
+            &shader_list,
+        )?;
+
+        let ps_quad_repeat = loader.create_shader(
+            ShaderKind::Primitive,
+            "ps_quad_repeat",
             &[],
             &shader_list,
         )?;
@@ -1082,6 +1090,7 @@ impl Shaders {
             ps_text_run,
             ps_text_run_dual_source,
             ps_quad_textured,
+            ps_quad_repeat,
             ps_quad_gradient,
             ps_quad_radial_gradient,
             ps_quad_conic_gradient,
