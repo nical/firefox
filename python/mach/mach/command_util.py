@@ -226,6 +226,9 @@ MACH_COMMANDS = {
         "toolkit/components/telemetry/tests/marionette/mach_commands.py"
     ),
     "test": MachCommandReference("testing/mach_commands.py"),
+    "test-expectations": MachCommandReference(
+        "testing/test-expectations/mach_commands.py"
+    ),
     "test-info": MachCommandReference("testing/mach_commands.py"),
     "test-interventions": MachCommandReference(
         "testing/webcompat/mach_commands.py",

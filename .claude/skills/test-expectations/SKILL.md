@@ -9,21 +9,21 @@ allowed-tools:
 
 # Reftest Expectations
 
-Script: `python3 .claude/skills/test-expectations/test-expectations.py`
+Command: `./mach test-expectations`
 
-Auto-detects test type: WPT (`testing/web-platform/`) uses `.ini` files, others use `reftest.list`. Test path may start with `@` (stripped automatically). All commands accept `--platform='<condition>'` (WPT: `os == "win"`, reftest.list: `Android`, `geckoview`, `winWidget`).
+Auto-detects test type: WPT (`testing/web-platform/`) uses `.ini` files, others use `reftest.list`. Test path may start with `@` (stripped automatically). All subcommands accept `--platform='<condition>'` (WPT: `os == "win"`, reftest.list: `Android`, `geckoview`, `winWidget`).
 
-## Commands
+## Subcommands
 
 ```bash
 # Fuzzy: <test-path> <max-diff-range> <total-pixels-range>
-python3 …/test-expectations.py fuzzy testing/web-platform/tests/css/foo/bar.html 0-1 0-500
-python3 …/test-expectations.py fuzzy layout/reftests/svg/test.svg 0-5 0-254 --platform=Android
+./mach test-expectations fuzzy testing/web-platform/tests/css/foo/bar.html 0-1 0-500
+./mach test-expectations fuzzy layout/reftests/svg/test.svg 0-5 0-254 --platform=Android
 
 # Expect: <test-path> <result> [--subtest='<name>']
 # WPT results: PASS, FAIL, TIMEOUT, ERROR, [PASS, FAIL]. Reftest: FAIL, RANDOM.
-python3 …/test-expectations.py expect testing/web-platform/tests/css/foo/bar.html FAIL --subtest='my subtest'
+./mach test-expectations expect testing/web-platform/tests/css/foo/bar.html FAIL --subtest='my subtest'
 
 # Disable: <test-path> <bug-url>
-python3 …/test-expectations.py disable testing/web-platform/tests/css/foo/bar.html 'https://bugzilla.mozilla.org/show_bug.cgi?id=123456'
+./mach test-expectations disable testing/web-platform/tests/css/foo/bar.html 'https://bugzilla.mozilla.org/show_bug.cgi?id=123456'
 ```
