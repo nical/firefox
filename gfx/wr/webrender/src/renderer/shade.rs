@@ -630,6 +630,7 @@ pub struct Shaders {
     ps_split_composite: ShaderHandle,
     ps_quad_textured: ShaderHandle,
     ps_quad_gradient: ShaderHandle,
+    ps_quad_checkerboard: ShaderHandle,
     ps_mask: ShaderHandle,
     ps_mask_fast: ShaderHandle,
     ps_clear: ShaderHandle,
@@ -847,6 +848,13 @@ impl Shaders {
             &shader_list,
         )?;
 
+        let ps_quad_checkerboard = loader.create_shader(
+            ShaderKind::Primitive,
+            "ps_quad_checkerboard",
+            &[],
+            &shader_list,
+        )?;
+
         let ps_split_composite = loader.create_shader(
             ShaderKind::Primitive,
             "ps_split_composite",
@@ -1059,6 +1067,7 @@ impl Shaders {
             ps_text_run_dual_source,
             ps_quad_textured,
             ps_quad_gradient,
+            ps_quad_checkerboard,
             ps_mask,
             ps_mask_fast,
             ps_split_composite,
@@ -1124,6 +1133,7 @@ impl Shaders {
         let shader_handle = match pattern {
             PatternKind::ColorOrTexture => self.ps_quad_textured,
             PatternKind::Gradient => self.ps_quad_gradient,
+            PatternKind::Checkerboard => self.ps_quad_checkerboard,
             PatternKind::Mask => unreachable!(),
         };
         self.loader.get(shader_handle)
@@ -1153,6 +1163,9 @@ impl Shaders {
             }
             BatchKind::Quad(PatternKind::Gradient) => {
                 self.ps_quad_gradient
+            }
+            BatchKind::Quad(PatternKind::Checkerboard) => {
+                self.ps_quad_checkerboard
             }
             BatchKind::Quad(PatternKind::Mask) => {
                 unreachable!();
@@ -1251,6 +1264,7 @@ impl Shaders {
     pub fn cs_clip_rectangle_fast(&mut self) -> &mut LazilyCompiledShader { self.loader.get(self.cs_clip_rectangle_fast) }
     pub fn cs_clip_box_shadow(&mut self) -> &mut LazilyCompiledShader { self.loader.get(self.cs_clip_box_shadow) }
     pub fn ps_quad_textured(&mut self) -> &mut LazilyCompiledShader { self.loader.get(self.ps_quad_textured) }
+    pub fn ps_quad_checkerboard(&mut self) -> &mut LazilyCompiledShader { self.loader.get(self.ps_quad_checkerboard) }
     pub fn ps_mask(&mut self) -> &mut LazilyCompiledShader { self.loader.get(self.ps_mask) }
     pub fn ps_mask_fast(&mut self) -> &mut LazilyCompiledShader { self.loader.get(self.ps_mask_fast) }
     pub fn ps_clear(&mut self) -> &mut LazilyCompiledShader { self.loader.get(self.ps_clear) }
