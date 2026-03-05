@@ -2163,7 +2163,7 @@ impl TileCacheInstance {
         use SurfacePromotionFailure::*;
 
         // This primitive exists on the last element on the current surface stack.
-        profile_scope!("update_prim_dependencies");
+        tracy_rs::profile_scope!("update_prim_dependencies");
         let prim_surface_index = surface_stack.last().unwrap().1;
         let prim_clip_chain = &prim_instance.vis.clip_chain;
 

@@ -116,7 +116,7 @@ fn prepare_primitives(
     tile_caches: &mut FastHashMap<SliceId, Box<TileCacheInstance>>,
     prim_instances: &mut Vec<PrimitiveInstance>,
 ) {
-    profile_scope!("prepare_primitives");
+    tracy_rs::profile_scope!("prepare_primitives");
     let mut cmd_buffer_targets = Vec::new();
 
     let mut quad_transform = QuadTransformState::new();
@@ -125,7 +125,7 @@ fn prepare_primitives(
         if !cluster.flags.contains(ClusterFlags::IS_VISIBLE) {
             continue;
         }
-        profile_scope!("cluster");
+        tracy_rs::profile_scope!("cluster");
         pic_state.map_local_to_pic.set_target_spatial_node(
             cluster.spatial_node_index,
             frame_context.spatial_tree,
@@ -218,7 +218,7 @@ fn prepare_prim_for_render(
     prim_instances: &mut Vec<PrimitiveInstance>,
     targets: &[CommandBufferIndex],
 ) {
-    profile_scope!("prepare_prim_for_render");
+    tracy_rs::profile_scope!("prepare_prim_for_render");
 
     // If we have dependencies, we need to prepare them first, in order
     // to know the actual rect of this primitive.
@@ -361,7 +361,7 @@ fn prepare_interned_prim_for_render(
 
     match &mut prim_instance.kind {
         PrimitiveInstanceKind::BoxShadow { data_handle, .. } => {
-            profile_scope!("BoxShadow");
+            tracy_rs::profile_scope!("BoxShadow");
 
             let prim_data = &data_stores.box_shadow[*data_handle];
             let shadow_data = &prim_data.kind;
@@ -564,7 +564,7 @@ fn prepare_interned_prim_for_render(
             return;
         }
         PrimitiveInstanceKind::LineDecoration { data_handle, ref mut scratch_handle } => {
-            profile_scope!("LineDecoration");
+            tracy_rs::profile_scope!("LineDecoration");
             let prim_data = &mut data_stores.line_decoration[*data_handle];
             let common_data = &mut prim_data.common;
             let line_dec_data = &mut prim_data.kind;
@@ -579,7 +579,7 @@ fn prepare_interned_prim_for_render(
             *scratch_handle = scratch.line_decoration.push(LineDecorationScratch { task_id: render_task });
         }
         PrimitiveInstanceKind::TextRun { run_index, data_handle, .. } => {
-            profile_scope!("TextRun");
+            tracy_rs::profile_scope!("TextRun");
             let prim_data = &mut data_stores.text_run[*data_handle];
             let run = &mut store.text_runs[*run_index];
 
@@ -644,7 +644,7 @@ fn prepare_interned_prim_for_render(
             prim_data.update(frame_state);
         }
         PrimitiveInstanceKind::NormalBorder { data_handle, ref mut scratch_handle } => {
-            profile_scope!("NormalBorder");
+            tracy_rs::profile_scope!("NormalBorder");
             let prim_data = &mut data_stores.normal_border[*data_handle];
             let common_data = &mut prim_data.common;
             let border_data = &mut prim_data.kind;
@@ -669,7 +669,7 @@ fn prepare_interned_prim_for_render(
             *scratch_handle = handle;
         }
         PrimitiveInstanceKind::ImageBorder { data_handle, .. } => {
-            profile_scope!("ImageBorder");
+            tracy_rs::profile_scope!("ImageBorder");
             let prim_data = &mut data_stores.image_border[*data_handle];
 
             // TODO: get access to the ninepatch and to check whether we need support
@@ -683,7 +683,7 @@ fn prepare_interned_prim_for_render(
             );
         }
         PrimitiveInstanceKind::Rectangle { data_handle, segment_instance_index, .. } => {
-            profile_scope!("Rectangle");
+            tracy_rs::profile_scope!("Rectangle");
 
             if use_legacy_path {
                 let prim_data = &mut data_stores.prim[*data_handle];
@@ -731,7 +731,7 @@ fn prepare_interned_prim_for_render(
             }
         }
         PrimitiveInstanceKind::YuvImage { data_handle, segment_instance_index, compositor_surface_kind, .. } => {
-            profile_scope!("YuvImage");
+            tracy_rs::profile_scope!("YuvImage");
             let prim_data = &mut data_stores.yuv_image[*data_handle];
             let common_data = &mut prim_data.common;
             let yuv_image_data = &mut prim_data.kind;
@@ -757,7 +757,7 @@ fn prepare_interned_prim_for_render(
             );
         }
         PrimitiveInstanceKind::Image { data_handle, image_instance_index, .. } => {
-            profile_scope!("Image");
+            tracy_rs::profile_scope!("Image");
 
             let prim_data = &mut data_stores.image[*data_handle];
             let common_data = &mut prim_data.common;
@@ -811,7 +811,7 @@ fn prepare_interned_prim_for_render(
             );
         }
         PrimitiveInstanceKind::LinearGradient { data_handle, .. } => {
-            profile_scope!("LinearGradient");
+            tracy_rs::profile_scope!("LinearGradient");
             let prim_data = &mut data_stores.linear_grad[*data_handle];
             let prim_rect = LayoutRect::from_origin_and_size(prim_instance.prim_origin, prim_data.common.prim_size);
 
@@ -887,7 +887,7 @@ fn prepare_interned_prim_for_render(
             return;
         }
         PrimitiveInstanceKind::RadialGradient { data_handle, .. } => {
-            profile_scope!("RadialGradient");
+            tracy_rs::profile_scope!("RadialGradient");
             let prim_data = &mut data_stores.radial_grad[*data_handle];
             let local_rect = LayoutRect::from_origin_and_size(prim_instance.prim_origin, prim_data.common.prim_size);
 
@@ -933,7 +933,7 @@ fn prepare_interned_prim_for_render(
             return;
         }
         PrimitiveInstanceKind::ConicGradient { data_handle, .. } => {
-            profile_scope!("ConicGradient");
+            tracy_rs::profile_scope!("ConicGradient");
             let prim_data = &mut data_stores.conic_grad[*data_handle];
             let prim_rect = LayoutRect::from_origin_and_size(prim_instance.prim_origin, prim_data.common.prim_size);
 
@@ -1013,7 +1013,7 @@ fn prepare_interned_prim_for_render(
             return;
         }
         PrimitiveInstanceKind::Picture { pic_index, .. } => {
-            profile_scope!("Picture");
+            tracy_rs::profile_scope!("Picture");
             let pic = &mut store.pictures[pic_index.0];
 
             if prim_instance.vis.clip_chain.needs_mask {

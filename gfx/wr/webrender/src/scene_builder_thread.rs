@@ -41,7 +41,7 @@ use std::thread;
 use std::time::Duration;
 
 fn rasterize_blobs(txn: &mut TransactionMsg, is_low_priority: bool, tile_pool: &mut api::BlobTilePool) {
-    profile_scope!("rasterize_blobs");
+    tracy_rs::profile_scope!("rasterize_blobs");
 
     if let Some(ref mut rasterizer) = txn.blob_rasterizer {
         let mut rasterized_blobs = rasterizer.rasterize(&txn.blob_requests, is_low_priority, tile_pool);
@@ -320,7 +320,7 @@ impl SceneBuilderThread {
         }
 
         loop {
-            tracy_begin_frame!("scene_builder_thread");
+            tracy_rs::tracy_begin_frame!("scene_builder_thread");
 
             match self.rx.recv() {
                 Ok(SceneBuilderRequest::WakeUp) => {}
@@ -416,7 +416,7 @@ impl SceneBuilderThread {
                 hooks.poke();
             }
 
-            tracy_end_frame!("scene_builder_thread");
+            tracy_rs::tracy_end_frame!("scene_builder_thread");
         }
 
         if let Some(ref hooks) = self.hooks {
@@ -539,7 +539,7 @@ impl SceneBuilderThread {
 
     /// Do the bulk of the work of the scene builder thread.
     fn process_transaction(&mut self, mut txn: TransactionMsg) -> Box<BuiltTransaction> {
-        profile_scope!("process_transaction");
+        tracy_rs::profile_scope!("process_transaction");
 
         if let Some(ref hooks) = self.hooks {
             hooks.pre_scene_build();

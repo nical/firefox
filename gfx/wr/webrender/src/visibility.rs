@@ -222,7 +222,7 @@ pub fn update_prim_visibility(
     let visibility_spatial_node_index = surface.visibility_spatial_node_index;
 
     for cluster in &pic.prim_list.clusters {
-        profile_scope!("cluster");
+        tracy_rs::profile_scope!("cluster");
 
         // Each prim instance must have reset called each frame, to clear
         // indices into various scratch buffers. If this doesn't occur,

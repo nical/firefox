@@ -708,7 +708,7 @@ impl PicturePrimitive {
             return None;
         }
 
-        profile_scope!("take_context");
+        tracy_rs::profile_scope!("take_context");
 
         let surface_index = match self.raster_config {
             Some(ref raster_config) => raster_config.surface_index,
