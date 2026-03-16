@@ -95,7 +95,7 @@ impl LineDecorationData {
         prim_spatial_node_index: SpatialNodeIndex,
         frame_context: &FrameBuildingContext,
         frame_state: &mut FrameBuildingState,
-    ) -> Option<RenderTaskId> {
+    ) -> Option<(RenderTaskId, LayoutSize)> {
         // If we have a cache key, it's a wavy / dashed / dotted line. Otherwise, it's
         // a simple solid line.
         let Some(cache_key) = self.cache_key.as_ref() else {
@@ -122,7 +122,8 @@ impl LineDecorationData {
         // Pick the maximum dimension as scale
         let scale_factor = LayoutToDeviceScale::new(scale_width.max(scale_height));
 
-        let task_size_f = (LayoutSize::from_au(cache_key.size) * scale_factor).ceil();
+        let layout_size = LayoutSize::from_au(cache_key.size);
+        let task_size_f = (layout_size * scale_factor).ceil();
         let mut task_size = if task_size_f.width > MAX_LINE_DECORATION_RESOLUTION as f32 ||
             task_size_f.height > MAX_LINE_DECORATION_RESOLUTION as f32 {
                 let max_extent = task_size_f.width.max(task_size_f.height);
@@ -142,7 +143,7 @@ impl LineDecorationData {
         task_size.height = task_size.height.max(1);
 
         // Request a pre-rendered image task.
-        Some(frame_state.resource_cache.request_render_task(
+        let task = frame_state.resource_cache.request_render_task(
             Some(RenderTaskCacheKey {
                 origin: DeviceIntPoint::zero(),
                 size: task_size,
@@ -164,7 +165,9 @@ impl LineDecorationData {
                     ),
                 ))
             }
-        ))
+        );
+
+        Some((task, layout_size))
     }
 
     fn write_prim_gpu_blocks(
@@ -232,6 +235,7 @@ impl InternablePrimitive for LineDecoration {
         PrimitiveInstanceKind::LineDecoration {
             data_handle,
             render_task: None,
+            use_legacy_path: false,
         }
     }
 }

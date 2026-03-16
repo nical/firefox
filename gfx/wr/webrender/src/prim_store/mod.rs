@@ -778,6 +778,7 @@ pub enum PrimitiveInstanceKind {
         //           use them directly. This will remove cache_handle,
         //           but also the opacity, clip_task_id etc below.
         render_task: Option<RenderTaskId>,
+        use_legacy_path: bool,
     },
     NormalBorder {
         /// Handle to the common interned data for this primitive.

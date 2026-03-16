@@ -262,6 +262,7 @@ fn prepare_prim_for_render(
             | PrimitiveInstanceKind::ConicGradient { .. }
             | PrimitiveInstanceKind::NormalBorder { .. }
             | PrimitiveInstanceKind::ImageBorder { .. }
+            | PrimitiveInstanceKind::LineDecoration { .. }
             => {
                 use_legacy_path = false;
             }
@@ -288,6 +289,7 @@ fn prepare_prim_for_render(
             | PrimitiveInstanceKind::RadialGradient { .. }
             | PrimitiveInstanceKind::ConicGradient { .. }
             | PrimitiveInstanceKind::LinearGradient { .. }
+            | PrimitiveInstanceKind::LineDecoration { .. }
             => {
                 use_legacy_path |= !can_use_clip_chain_for_quad_path(
                     &prim_instance.vis.clip_chain,
@@ -574,21 +576,78 @@ fn prepare_interned_prim_for_render(
 
             return;
         }
-        PrimitiveInstanceKind::LineDecoration { data_handle, ref mut render_task, .. } => {
+        PrimitiveInstanceKind::LineDecoration { data_handle, ref mut render_task, use_legacy_path, .. } => {
             profile_scope!("LineDecoration");
             let prim_data = &mut data_stores.line_decoration[*data_handle];
             let common_data = &mut prim_data.common;
             let line_dec_data = &mut prim_data.kind;
 
-            // Update the template this instane references, which may refresh the GPU
-            // cache with any shared template data.
-            line_dec_data.update(common_data, frame_state);
-
-            *render_task = line_dec_data.prepare_render_task(
+            let task = line_dec_data.prepare_render_task(
                 prim_spatial_node_index,
                 frame_context,
                 frame_state,
             );
+
+            if !*use_legacy_path {
+                let prim_rect = LayoutRect::from_origin_and_size(
+                    prim_instance.prim_origin,
+                    common_data.prim_size,
+                );
+
+                if let Some((src_task_id, stretch_size)) = task {
+                    let pattern = ImagePattern {
+                        src_task_id,
+                        src_is_opaque: false,
+                        color: line_dec_data.color,
+                    };
+
+                    // TODO: this renders a white wavy line, we need to take the color into acocunt.
+                    // the brush version does it via the color parameter of the image shader.
+                    quad::prepare_repeatable_quad(
+                        &pattern,
+                        &prim_rect,
+                        stretch_size,
+                        LayoutSize::zero(),
+                        prim_data.common.aligned_aa_edges,
+                        prim_data.common.transformed_aa_edges,
+                        prim_instance_index,
+                        &None,
+                        &prim_instance.vis.clip_chain,
+                        quad_transform,
+                        frame_context,
+                        pic_context,
+                        targets,
+                        &data_stores.clip,
+                        frame_state,
+                        scratch,
+                    );
+                } else {
+                    quad::prepare_quad(
+                        &line_dec_data.color,
+                        &prim_rect,
+                        prim_data.common.aligned_aa_edges,
+                        prim_data.common.transformed_aa_edges,
+                        prim_instance_index,
+                        &None,
+                        &prim_instance.vis.clip_chain,
+                        quad_transform,
+                        frame_context,
+                        pic_context,
+                        targets,
+                        &data_stores.clip,
+                        frame_state,
+                        scratch,
+                    );
+                }
+
+                return;
+            } else {
+                // Update the template this instane references, which may refresh the GPU
+                // cache with any shared template data.
+                line_dec_data.update(common_data, frame_state);
+
+                *render_task = task.map(|task| task.0);
+            }
         }
         PrimitiveInstanceKind::TextRun { run_index, data_handle, .. } => {
             profile_scope!("TextRun");
