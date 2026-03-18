@@ -521,6 +521,7 @@ pub fn prepare_non_tiled_image_quad(
     let pattern_builder = ImagePattern {
         src_task_id: image_task,
         src_is_opaque: common_data.opacity.is_opaque && is_opaque,
+        color: image_data.color,
     };
 
     quad::prepare_repeatable_quad(

@@ -680,7 +680,7 @@ fn prepare_interned_prim_for_render(
                     let pattern = ImagePattern {
                         src_task_id: *task_id,
                         src_is_opaque: false,
-                        //color: ColorF::WHITE,
+                        color: ColorF::WHITE,
                     };
 
                     // TODO: Dealing with brush flags and more generally brush segments here
@@ -769,7 +769,7 @@ fn prepare_interned_prim_for_render(
                 let src_image = ImagePattern {
                     src_task_id: task_id,
                     src_is_opaque: false,
-                    //color: ColorF::WHITE,
+                    color: ColorF::WHITE,
                 };
 
                 quad::prepare_border_image_nine_patch(

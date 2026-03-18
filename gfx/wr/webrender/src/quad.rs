@@ -648,7 +648,7 @@ pub fn prepare_border_image_nine_patch(
         let segment_pattern = ImagePattern {
             src_task_id: segment_src,
             src_is_opaque: img_pattern.is_opaque,
-            //color: ColorF::WHITE,
+            color: ColorF::WHITE,
         };
 
         let segment_size = dst_rect.size();
