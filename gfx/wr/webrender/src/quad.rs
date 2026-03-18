@@ -336,8 +336,8 @@ pub fn prepare_repeatable_quad(
         || (num_repetitions > 64.0 && surface_rect.area() < 1024.0 * 1024.0);
 
     if repeat_using_a_shader {
-        let src_task_id = match src_task_id {
-            Some(task) => task,
+        let (src_task_id, base_color) = match src_task_id {
+            Some(task) => (task, pattern.base_color),
             None => {
                 // The source is not an image. Make it one by rendering
                 // the pattern in a render task.
@@ -370,7 +370,7 @@ pub fn prepare_repeatable_quad(
                     return;
                 };
 
-                task_id
+                (task_id, ColorF::WHITE)
             }
         };
 
@@ -379,6 +379,7 @@ pub fn prepare_repeatable_quad(
             spacing: tile_spacing,
             src_task_id,
             src_is_opaque: pattern.is_opaque,
+            base_color,
         };
 
         let repeat_pattern = repetitions.build(
