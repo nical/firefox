@@ -847,7 +847,6 @@ fn prepare_quad_impl(
             };
 
             add_composite_prim(
-                pattern.base_color,
                 prim_instance_index,
                 &clipped_surface_rect,
                 frame_state,
@@ -1165,7 +1164,6 @@ fn prepare_nine_patch(
 
     if !scratch.quad_indirect_segments.is_empty() {
         add_composite_prim(
-            pattern.base_color,
             prim_instance_index,
             &device_clip_rect,
             frame_state,
@@ -1419,7 +1417,6 @@ fn prepare_tiles(
 
     if !scratch.quad_indirect_segments.is_empty() {
         add_composite_prim(
-            pattern.base_color,
             prim_instance_index,
             device_clip_rect,
             frame_state,
@@ -1728,7 +1725,6 @@ fn add_pattern_prim(
 }
 
 fn add_composite_prim(
-    base_color: ColorF,
     prim_instance_index: PrimitiveInstanceIndex,
     rect: &DeviceRect,
     frame_state: &mut FrameBuildingState,
@@ -1746,12 +1742,7 @@ fn add_composite_prim(
         &mut frame_state.frame_gpu_data.f32,
         rect,
         rect,
-        // TODO: The base color for composite prim should be opaque white
-        // (or white with some transparency to support an opacity directly
-        // in the quad primitive). However, passing opaque white
-        // here causes glitches with Adreno GPUs on Windows specifically
-        // (See bug 1897444).
-        base_color,
+        ColorF::WHITE,
         RenderTaskId::INVALID,
         segments,
         ScaleOffset::identity(),
