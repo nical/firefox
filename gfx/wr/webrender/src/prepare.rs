@@ -6,7 +6,7 @@
 //!
 //! TODO: document this!
 
-use api::{BoxShadowClipMode, ColorF, DebugFlags};
+use api::{BoxShadowClipMode, ColorF, DebugFlags, RepeatMode};
 use api::ClipMode;
 use crate::util::clamp_to_scale_factor;
 use crate::box_shadow::{BoxShadowCacheKey, BLUR_SAMPLE_SCALE};
@@ -18,6 +18,8 @@ use crate::composite::CompositorSurfaceKind;
 use crate::command_buffer::{CommandBufferIndex, PrimitiveCommand};
 use crate::border;
 use crate::clip::{ClipStore, ClipNodeRange};
+use crate::pattern::image::ImagePattern;
+use crate::render_task_graph::RenderTaskId;
 use crate::renderer::{GpuBufferAddress, GpuBufferWriterF};
 use crate::spatial_tree::SpatialNodeIndex;
 use crate::clip::{clamped_radius, ClipNodeFlags, ClipChainInstance, ClipItemKind};
@@ -263,6 +265,7 @@ fn prepare_prim_for_render(
             | PrimitiveKind::RadialGradient { .. }
             | PrimitiveKind::ConicGradient { .. }
             | PrimitiveKind::LinearGradient { .. }
+            | PrimitiveKind::NormalBorder { .. }
             => {
                 use_legacy_path = false;
             }
@@ -740,6 +743,8 @@ fn prepare_interned_prim_for_render(
         PrimitiveKind::NormalBorder { data_handle } => {
             profile_scope!("NormalBorder");
             let prim_data = &mut data_stores.normal_border[*data_handle];
+            let aligned_aa_edges = prim_data.common.aligned_aa_edges;
+            let transformed_aa_edges = prim_data.common.transformed_aa_edges;
             let common_data = &mut prim_data.common;
             let border_data = &mut prim_data.kind;
 
@@ -751,15 +756,6 @@ fn prepare_interned_prim_for_render(
                 .kind_scratch
                 .unwrap_normal_border();
             let nb_scratch = scratch.frame.normal_border[nb_handle];
-
-            let brush_segments = &scratch.frame.segments[nb_scratch.brush_segments_range];
-            let gpu_address = border_data.write_brush_gpu_blocks(
-                common_data,
-                prim_instance.prim_rect.size(),
-                brush_segments,
-                frame_state,
-            );
-            scratch.frame.normal_border[nb_handle].gpu_address = gpu_address;
 
             // Hold split borrows on distinct fields of scratch.frame so
             // we can pass the border_segments slice and the task_ids
@@ -777,6 +773,134 @@ fn prepare_interned_prim_for_render(
                 frame_state,
                 &mut border_task_ids[nb_scratch.task_ids],
             );
+
+            if !use_legacy_path {
+                let offset = prim_instance.prim_rect.min.to_vector();
+                // TODO: as soon as the legacy path is removed we can remove the scratch handles
+                // and hoops we get through to access them here.
+                let task_ids: SmallVec<[RenderTaskId; 8]> = SmallVec::from_slice(
+                    &scratch.frame.border_task_ids[nb_scratch.task_ids],
+                );
+                let brush_segments: SmallVec<[BrushSegment; 8]> =
+                    scratch.frame.segments[nb_scratch.brush_segments_range]
+                        .iter()
+                        .cloned()
+                        .collect();
+                for (task_id, segment) in task_ids.iter().zip(brush_segments.iter()) {
+                    let pattern = ImagePattern {
+                        src_task_id: *task_id,
+                        src_is_opaque: false,
+                        premultiplied: true,
+                    };
+
+                    // TODO: Dealing with brush flags and more generally brush segments here
+                    // is awkward. We'll be able to clean this up once the brush code path
+                    // is removed.
+                    let flags = segment.brush_flags;
+                    let repeat_x = if flags.contains(BrushFlags::SEGMENT_REPEAT_X_ROUND) {
+                        RepeatMode::Round
+                    } else if flags.contains(BrushFlags::SEGMENT_REPEAT_X) {
+                        RepeatMode::Repeat
+                    } else {
+                        RepeatMode::Stretch
+                    };
+
+                    let repeat_y = if flags.contains(BrushFlags::SEGMENT_REPEAT_Y_ROUND) {
+                        RepeatMode::Round
+                    } else if flags.contains(BrushFlags::SEGMENT_REPEAT_Y) {
+                        RepeatMode::Repeat
+                    } else {
+                        RepeatMode::Stretch
+                    };
+
+                    // For normal-border segments, extra_data carries the pattern
+                    // stretch size in layout units, which is more accurate than
+                    // the render task's (rounded) device-pixel size.
+                    let src_size = DeviceSize::new(
+                        segment.extra_data[2] - segment.extra_data[0],
+                        segment.extra_data[3] - segment.extra_data[1],
+                    );
+
+                    let mut segment_local_rect = segment.local_rect.translate(offset);
+                    let local_clip_rect = prim_info.clip_chain.local_clip_rect
+                        .intersection(&segment_local_rect)
+                        .unwrap_or(LayoutRect::zero());
+
+                    // Corner segments with overlapping adjacent corners have
+                    // SEGMENT_TEXEL_RECT set. In that case the source render task
+                    // contains the full corner texture (image_rect) while
+                    // segment.local_rect is only the visible (non-overlapping)
+                    // part. extra_data carries the normalized texture sub-rect
+                    // that segment.local_rect maps to. Reconstruct image_rect so
+                    // the texture is drawn at its natural size, and clip the
+                    // output to segment.local_rect.
+                    if flags.contains(BrushFlags::SEGMENT_TEXEL_RECT) {
+                        let tex_rect = segment.extra_data;
+                        let tex_w = tex_rect[2] - tex_rect[0];
+                        let tex_h = tex_rect[3] - tex_rect[1];
+                        if tex_w > 0.0 && tex_h > 0.0 {
+                            let image_size = LayoutSize::new(
+                                segment_local_rect.width() / tex_w,
+                                segment_local_rect.height() / tex_h,
+                            );
+                            let image_min = LayoutPoint::new(
+                                segment_local_rect.min.x - tex_rect[0] * image_size.width,
+                                segment_local_rect.min.y - tex_rect[1] * image_size.height,
+                            );
+                            segment_local_rect = LayoutRect::from_origin_and_size(
+                                image_min,
+                                image_size,
+                            );
+                        }
+                    }
+
+                    // The segment's local_rect is already positioned so that an
+                    // integer number of pattern tiles fits exactly, so the offset
+                    // returned by compute_border_repetition (used to center an
+                    // extra partial repetition for border-image) is unused here.
+                    let mut stretch_size = segment_local_rect.size();
+                    let mut spacing = LayoutSize::zero();
+                    crate::border::compute_border_repetition(
+                        segment_local_rect.size(),
+                        src_size,
+                        repeat_x,
+                        repeat_y,
+                        &mut stretch_size,
+                        &mut spacing,
+                    );
+
+                    quad::prepare_repeatable_quad(
+                        &pattern,
+                        &segment_local_rect,
+                        &local_clip_rect,
+                        stretch_size,
+                        spacing,
+                        segment.edge_flags & aligned_aa_edges,
+                        segment.edge_flags & transformed_aa_edges,
+                        prim_instance_index,
+                        &None,
+                        &prim_info.clip_chain,
+                        quad_transform,
+                        frame_context,
+                        pic_context,
+                        targets,
+                        &data_stores.clip,
+                        frame_state,
+                        scratch,
+                    );
+                }
+
+                return;
+            } else {
+                let brush_segments = &scratch.frame.segments[nb_scratch.brush_segments_range];
+                let gpu_address = border_data.write_brush_gpu_blocks(
+                    common_data,
+                    prim_instance.prim_rect.size(),
+                    brush_segments,
+                    frame_state,
+                );
+                scratch.frame.normal_border[nb_handle].gpu_address = gpu_address;
+            }
         }
         PrimitiveKind::ImageBorder { data_handle, .. } => {
             profile_scope!("ImageBorder");
