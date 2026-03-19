@@ -6,7 +6,7 @@
 //!
 //! TODO: document this!
 
-use api::{ColorF, DebugFlags};
+use api::{ColorF, DebugFlags, RepeatMode};
 use api::ClipMode;
 use crate::util::clamp_to_scale_factor;
 use crate::box_shadow::{BoxShadowCacheKey, BLUR_SAMPLE_SCALE};
@@ -18,6 +18,7 @@ use crate::composite::CompositorSurfaceKind;
 use crate::command_buffer::{CommandBufferIndex, PrimitiveCommand};
 use crate::border;
 use crate::clip::{ClipStore, ClipNodeRange};
+use crate::pattern::image::ImagePattern;
 use crate::render_task_graph::RenderTaskId;
 use crate::renderer::{GpuBufferAddress, GpuBufferWriterF};
 use crate::spatial_tree::SpatialNodeIndex;
@@ -256,6 +257,7 @@ fn prepare_prim_for_render(
             | PrimitiveInstanceKind::RadialGradient { .. }
             | PrimitiveInstanceKind::ConicGradient { .. }
             | PrimitiveInstanceKind::LinearGradient { .. }
+            | PrimitiveInstanceKind::NormalBorder { .. }
             => {
                 use_legacy_path = false;
             }
@@ -649,8 +651,6 @@ fn prepare_interned_prim_for_render(
             let common_data = &mut prim_data.common;
             let border_data = &mut prim_data.kind;
 
-            border_data.write_brush_gpu_blocks(common_data, frame_state);
-
             let segment_count = border_data.border_segments.len();
             let task_ids = scratch.border_task_ids.extend(
                 std::iter::repeat(RenderTaskId::INVALID).take(segment_count),
@@ -666,7 +666,85 @@ fn prepare_interned_prim_for_render(
                 &mut scratch.border_task_ids[task_ids],
             );
 
-            *scratch_handle = handle;
+            if !use_legacy_path {
+                let offset = prim_instance.prim_origin.to_vector();
+                // TODO: as soon as the legacy path is removed we can remove the scratch handles
+                // and hoops we get through to access them here.
+                let task_ids = &scratch.border_task_ids[task_ids];
+                let task_ids: SmallVec<[RenderTaskId; 8]> = SmallVec::from_slice(task_ids);
+                for (task_id, segment) in task_ids.iter().zip(border_data.brush_segments.iter()) {
+                    let pattern = ImagePattern {
+                        src_task_id: *task_id,
+                        src_is_opaque: false,
+                        //color: ColorF::WHITE,
+                    };
+
+                    // TODO: Dealing with brush flags and more generally brush segments here
+                    // is awkward. We'll be able to clean this up once the brush code path
+                    // is removed.
+                    let flags = segment.brush_flags;
+                    let repeat_x = if flags.contains(BrushFlags::SEGMENT_REPEAT_X_ROUND) {
+                        RepeatMode::Round
+                    } else if flags.contains(BrushFlags::SEGMENT_REPEAT_X) {
+                        RepeatMode::Repeat
+                    } else {
+                        RepeatMode::Stretch
+                    };
+
+                    let repeat_y = if flags.contains(BrushFlags::SEGMENT_REPEAT_Y_ROUND) {
+                        RepeatMode::Round
+                    } else if flags.contains(BrushFlags::SEGMENT_REPEAT_Y) {
+                        RepeatMode::Repeat
+                    } else {
+                        RepeatMode::Stretch
+                    };
+
+                    let src_size = frame_state.rg_builder
+                        .get_task(*task_id)
+                        .get_target_size()
+                        .to_f32();
+
+                    let segment_local_rect = segment.local_rect.translate(offset);
+
+                    let mut stretch_size = segment_local_rect.size();
+                    let mut spacing = LayoutSize::zero();
+                    let mut _offset = LayoutVector2D::zero();
+                    crate::border::compute_border_repetition(
+                        segment_local_rect.size(),
+                        src_size,
+                        repeat_x,
+                        repeat_y,
+                        &mut stretch_size,
+                        &mut spacing,
+                        &mut _offset,
+                    );
+
+                    quad::prepare_repeatable_quad(
+                        &pattern,
+                        &segment_local_rect,
+                        stretch_size,
+                        spacing,
+                        segment.edge_flags & prim_data.common.aligned_aa_edges,
+                        segment.edge_flags & prim_data.common.transformed_aa_edges,
+                        prim_instance_index,
+                        &None,
+                        &prim_instance.vis.clip_chain,
+                        quad_transform,
+                        frame_context,
+                        pic_context,
+                        targets,
+                        &data_stores.clip,
+                        frame_state,
+                        scratch,
+                    );
+                }
+
+                return;
+            } else {
+                border_data.write_brush_gpu_blocks(common_data, frame_state);
+
+                *scratch_handle = handle;
+            }
         }
         PrimitiveInstanceKind::ImageBorder { data_handle, .. } => {
             profile_scope!("ImageBorder");
