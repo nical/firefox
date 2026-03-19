@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+use euclid::vec2;
 use api::{BorderRadius, BorderSide, BorderStyle, ColorF, ColorU};
 use api::{NormalBorder as ApiNormalBorder, RepeatMode};
 use api::units::*;
 use crate::clip::ClipNodeId;
 use crate::ellipse::Ellipse;
-use euclid::vec2;
 use crate::scene_building::SceneBuilder;
 use crate::spatial_tree::SpatialNodeIndex;
 use crate::gpu_types::{BorderInstance, BorderSegment, BrushFlags};
