@@ -7,8 +7,9 @@ use euclid::{Scale, point2};
 
 use crate::ItemUid;
 use crate::gpu_types::ClipSpace;
+use crate::pattern::image::ImagePattern;
 use crate::pattern::repeat::RepeatedPattern;
-use crate::render_task::{SubTask, RectangleClipSubTask, ImageClipSubTask};
+use crate::render_task::{ImageClipSubTask, RectangleClipSubTask, SubTask};
 use crate::transform::TransformPalette;
 use crate::batch::{BatchKey, BatchKind, BatchTextures};
 use crate::clip::{clamped_radius, ClipChainInstance, ClipIntern, ClipItemKind, ClipNodeRange, ClipStore, ClipNodeInstance, ClipItem};
@@ -214,6 +215,7 @@ pub fn prepare_quad(
         strategy,
         &pattern,
         local_rect,
+        local_rect,
         aligned_aa_edges,
         transfomed_aa_edges,
         prim_instance_index,
@@ -291,6 +293,7 @@ pub fn prepare_repeatable_quad(
         prepare_quad_impl(
             strategy,
             &pattern,
+            local_rect,
             local_rect,
             aligned_aa_edges,
             transfomed_aa_edges,
@@ -391,6 +394,7 @@ pub fn prepare_repeatable_quad(
             strategy,
             &repeat_pattern,
             local_rect,
+            local_rect,
             aligned_aa_edges,
             transfomed_aa_edges,
             prim_instance_index,
@@ -437,6 +441,7 @@ pub fn prepare_repeatable_quad(
             strategy,
             &pattern,
             &tile_rect,
+            &tile_rect,
             aligned_aa_edges & tile.edge_flags,
             transfomed_aa_edges & tile.edge_flags,
             prim_instance_index,
@@ -455,7 +460,7 @@ pub fn prepare_repeatable_quad(
     }
 }
 
-pub fn prepare_border_image_nine_patch(
+pub fn prepare_border_nine_patch(
     nine_patch: &NinePatchDescriptor,
     pattern_builder: &dyn PatternBuilder,
     local_rect: &LayoutRect,
@@ -562,6 +567,7 @@ pub fn prepare_border_image_nine_patch(
             strategy,
             &img_pattern,
             &dst_rect,
+            &dst_rect,
             aligned_aa_edges & side,
             transfomed_aa_edges & side,
             prim_instance_index,
@@ -580,10 +586,112 @@ pub fn prepare_border_image_nine_patch(
     });
 }
 
+pub fn prepare_border_image_nine_patch(
+    nine_patch: &NinePatchDescriptor,
+    src_image: &ImagePattern,
+    src_image_size: DeviceIntSize,
+    local_rect: &LayoutRect,
+    aligned_aa_edges: EdgeMask,
+    transfomed_aa_edges: EdgeMask,
+    prim_instance_index: PrimitiveInstanceIndex,
+    clip_chain: &ClipChainInstance,
+    transform: &mut QuadTransformState,
+
+    frame_context: &FrameBuildingContext,
+    pic_context: &PictureContext,
+    targets: &[CommandBufferIndex],
+    interned_clips: &DataStore<ClipIntern>,
+
+    frame_state: &mut FrameBuildingState,
+    scratch: &mut PrimitiveScratchBuffer,
+) {
+    let pattern_ctx = PatternBuilderContext {
+        spatial_tree: frame_context.spatial_tree,
+        fb_config: frame_context.fb_config,
+        prim_origin: local_rect.min,
+    };
+
+    let img_pattern = src_image.build(
+        None,
+        LayoutVector2D::zero(),
+        &pattern_ctx,
+        &mut PatternBuilderState {
+            frame_gpu_data: frame_state.frame_gpu_data,
+            transforms: frame_state.transforms,
+        },
+    );
+
+    let src_size = src_image_size.to_f32();
+
+    nine_patch.for_each_segment(local_rect, &mut|dst_rect, src_rect, side, repeat_h, repeat_v| {
+        let w = dst_rect.width() / (src_rect.uv1.x - src_rect.uv0.x);
+        let h = dst_rect.height() / (src_rect.uv1.y - src_rect.uv0.y);
+        if w <= 0.0001 || h <= 0.0001 {
+            return
+        }
+
+
+        let p0x = (src_size.width * src_rect.uv0.x).round() as i32;
+        let p0y = (src_size.height * src_rect.uv0.y).round() as i32;
+        let p1x = (src_size.width * src_rect.uv1.x).round() as i32;
+        let p1y = (src_size.height * src_rect.uv1.y).round() as i32;
+        let sub_rect = DeviceIntRect {
+            min: DeviceIntPoint::new(p0x, p0y),
+            max: DeviceIntPoint::new(p1x, p1y),
+        };
+
+        let segment_src = frame_state.rg_builder.add_sub_rect(src_image.src_task_id, &sub_rect);
+
+        let segment_pattern = ImagePattern {
+            src_task_id: segment_src,
+            src_is_opaque: img_pattern.is_opaque,
+            //color: ColorF::WHITE,
+        };
+
+        let segment_size = dst_rect.size();
+        let mut stretch_size = segment_size;
+        let mut spacing = LayoutSize::zero();
+        let mut offset = LayoutVector2D::zero();
+
+        crate::border::compute_border_repetition(
+            segment_size,
+            src_size,
+            repeat_h,
+            repeat_v,
+            &mut stretch_size,
+            &mut spacing,
+            &mut offset,
+        );
+
+        let mut segment_local_rect = *dst_rect;
+        segment_local_rect.min += offset;
+
+        prepare_repeatable_quad(
+            &segment_pattern,
+            &segment_local_rect,
+            stretch_size,
+            spacing,
+            aligned_aa_edges & side,
+            transfomed_aa_edges & side,
+            prim_instance_index,
+            &None,
+            clip_chain,
+            transform,
+            frame_context,
+            pic_context,
+            targets,
+            interned_clips,
+            frame_state,
+            scratch,
+        );
+    });
+}
+
 fn prepare_quad_impl(
     strategy: QuadRenderStrategy,
     pattern: &Pattern,
     local_rect: &LayoutRect,
+    local_clip_rect: &LayoutRect,
     aligned_aa_edges: EdgeMask,
     transfomed_aa_edges: EdgeMask,
     prim_instance_index: PrimitiveInstanceIndex,
@@ -637,6 +745,8 @@ fn prepare_quad_impl(
         transfomed_aa_edges
     };
 
+    let local_clip_rect = local_clip_rect.intersection_unchecked(&clip_chain.local_clip_rect);
+
     // We round the coordinates of non-antialiased edges of the primitive.
     // This allows us to ensure that indirect axis-aligned primitives cover the render
     // task exactly. Since we do this for indirect primitives, we have to also do it for
@@ -650,7 +760,7 @@ fn prepare_quad_impl(
 
         let quad = create_quad_primitive(
             &local_rect,
-            &clip_chain.local_clip_rect,
+            &local_clip_rect,
             &DeviceRect::max_rect(),
             transform.as_2d_scale_offset(),
             round_edges,
@@ -725,7 +835,7 @@ fn prepare_quad_impl(
                 transform.prim_spatial_node_index(),
                 transform.raster_spatial_node_index(),
                 local_rect,
-                &clip_chain.local_clip_rect,
+                &local_clip_rect,
                 &clipped_surface_rect,
                 transform.as_2d_scale_offset(),
                 transform.device_pixel_scale(),
@@ -755,6 +865,7 @@ fn prepare_quad_impl(
             prepare_tiles(
                 prim_instance_index,
                 local_rect,
+                &local_clip_rect,
                 &clipped_surface_rect,
                 pattern,
                 quad_flags,
@@ -774,7 +885,7 @@ fn prepare_quad_impl(
             prepare_nine_patch(
                 prim_instance_index,
                 local_rect,
-                &clip_chain.local_clip_rect,
+                &local_clip_rect,
                 &clipped_surface_rect,
                 &clip_rect,
                 radius,
@@ -1069,6 +1180,7 @@ fn prepare_nine_patch(
 fn prepare_tiles(
     prim_instance_index: PrimitiveInstanceIndex,
     local_rect: &LayoutRect,
+    local_clip_rect: &LayoutRect,
     device_clip_rect: &DeviceRect,
     pattern: &Pattern,
     mut quad_flags: QuadFlags,
@@ -1207,7 +1319,7 @@ fn prepare_tiles(
     let indirect_prim_address = write_prim_blocks(
         &mut frame_state.frame_gpu_data.f32,
         &local_rect,
-        &clip_chain.local_clip_rect,
+        local_clip_rect,
         device_clip_rect,
         transform.as_2d_scale_offset(),
         !aa_flags,
