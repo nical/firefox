@@ -292,9 +292,10 @@ pub struct ImageBorderData {
     #[ignore_malloc_size_of = "Arc"]
     pub request: ImageRequest,
     pub brush_segments: Vec<BrushSegment>,
-    pub src_color: Option<RenderTaskId>,
+    pub src_color: Option<(RenderTaskId, DeviceIntSize)>,
     pub frame_id: FrameId,
     pub is_opaque: bool,
+    pub nine_patch: NinePatchDescriptor,
 }
 
 impl ImageBorderData {
@@ -302,7 +303,7 @@ impl ImageBorderData {
     /// times per frame, by each primitive reference that refers to this interned
     /// template. The initial request call to the GPU cache ensures that work is only
     /// done if the cache entry is invalid (due to first use or eviction).
-    pub fn update(
+    pub fn write_brush_gpu_blocks(
         &mut self,
         common: &mut PrimTemplateCommonData,
         frame_state: &mut FrameBuildingState,
@@ -311,7 +312,13 @@ impl ImageBorderData {
         self.write_prim_gpu_blocks(&mut writer, &common.prim_size);
         self.write_segment_gpu_blocks(&mut writer);
         common.gpu_buffer_address = writer.finish();
+    }
 
+    pub fn update(
+        &mut self,
+        common: &mut PrimTemplateCommonData,
+        frame_state: &mut FrameBuildingState,
+    ) -> (RenderTaskId, DeviceIntSize) {
         let frame_id = frame_state.rg_builder.frame_id();
         if self.frame_id != frame_id {
             self.frame_id = frame_id;
@@ -325,7 +332,7 @@ impl ImageBorderData {
                 RenderTask::new_image(size, self.request, false)
             );
 
-            self.src_color = Some(task_id);
+            self.src_color = Some((task_id, size));
 
             let image_properties = frame_state
                 .resource_cache
@@ -337,6 +344,8 @@ impl ImageBorderData {
         }
 
         common.opacity = PrimitiveOpacity { is_opaque: self.is_opaque };
+
+        self.src_color.unwrap()
     }
 
     fn write_prim_gpu_blocks(
@@ -379,6 +388,7 @@ impl From<ImageBorderKey> for ImageBorderTemplate {
                 src_color: None,
                 frame_id: FrameId::INVALID,
                 is_opaque: false,
+                nine_patch: key.kind.nine_patch,
             }
         }
     }

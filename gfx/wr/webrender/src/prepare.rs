@@ -261,6 +261,7 @@ fn prepare_prim_for_render(
             | PrimitiveInstanceKind::RadialGradient { .. }
             | PrimitiveInstanceKind::ConicGradient { .. }
             | PrimitiveInstanceKind::NormalBorder { .. }
+            | PrimitiveInstanceKind::ImageBorder { .. }
             => {
                 use_legacy_path = false;
             }
@@ -754,16 +755,45 @@ fn prepare_interned_prim_for_render(
         PrimitiveInstanceKind::ImageBorder { data_handle, .. } => {
             profile_scope!("ImageBorder");
             let prim_data = &mut data_stores.image_border[*data_handle];
+            let common_data = &mut prim_data.common;
+            let border_data = &mut prim_data.kind;
 
-            // TODO: get access to the ninepatch and to check whether we need support
-            // for repetitions in the shader.
+            let (task_id, size) = border_data.update(common_data, frame_state);
 
-            // Update the template this instance references, which may refresh the GPU
-            // cache with any shared template data.
-            prim_data.kind.update(
-                &mut prim_data.common,
-                frame_state
-            );
+            if !use_legacy_path {
+                let prim_rect = LayoutRect::from_origin_and_size(
+                    prim_instance.prim_origin,
+                    common_data.prim_size,
+                );
+
+                let src_image = ImagePattern {
+                    src_task_id: task_id,
+                    src_is_opaque: false,
+                    //color: ColorF::WHITE,
+                };
+
+                quad::prepare_border_image_nine_patch(
+                    &border_data.nine_patch,
+                    &src_image,
+                    size,
+                    &prim_rect,
+                    prim_data.common.aligned_aa_edges,
+                    prim_data.common.transformed_aa_edges,
+                    prim_instance_index,
+                    &prim_instance.vis.clip_chain,
+                    quad_transform,
+                    frame_context,
+                    pic_context,
+                    targets,
+                    &data_stores.clip,
+                    frame_state,
+                    scratch,
+                );
+
+                return;
+            } else {
+                border_data.write_brush_gpu_blocks(common_data, frame_state);
+            }
         }
         PrimitiveInstanceKind::Rectangle { data_handle, segment_instance_index, .. } => {
             profile_scope!("Rectangle");
@@ -899,7 +929,7 @@ fn prepare_interned_prim_for_render(
             let prim_rect = LayoutRect::from_origin_and_size(prim_instance.prim_origin, prim_data.common.prim_size);
             if !use_legacy_path {
                 if let Some(nine_patch) = &prim_data.border_nine_patch {
-                    quad::prepare_border_image_nine_patch(
+                    quad::prepare_border_nine_patch(
                         &*nine_patch,
                         prim_data,
                         &prim_rect,
@@ -1065,7 +1095,7 @@ fn prepare_interned_prim_for_render(
             if !use_legacy_path {
                 let local_rect = LayoutRect::from_origin_and_size(prim_instance.prim_origin, prim_data.common.prim_size);
                 if let Some(nine_patch) = &prim_data.border_nine_patch {
-                    quad::prepare_border_image_nine_patch(
+                    quad::prepare_border_nine_patch(
                         &*nine_patch,
                         prim_data,
                         &local_rect,
@@ -1142,7 +1172,7 @@ fn prepare_interned_prim_for_render(
 
             if !use_legacy_path {
                 if let Some(nine_patch) = &prim_data.border_nine_patch {
-                    quad::prepare_border_image_nine_patch(
+                    quad::prepare_border_nine_patch(
                         &*nine_patch,
                         prim_data,
                         &prim_rect,
