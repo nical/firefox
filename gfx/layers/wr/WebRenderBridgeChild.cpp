@@ -57,11 +57,8 @@ void WebRenderBridgeChild::Destroy(bool aIsSync) {
 void WebRenderBridgeChild::ActorDestroy(ActorDestroyReason why) { DoDestroy(); }
 
 void WebRenderBridgeChild::DoDestroy() {
-  if (RefCountedShm::IsValid(mResourceShm) &&
-      RefCountedShm::Release(mResourceShm) == 0) {
-    RefCountedShm::Dealloc(this, mResourceShm);
-    mResourceShm = RefCountedShmem();
-  }
+  mResourceShmems.Clear();
+  mPendingRegistrations.Clear();
 
   // mDestroyed is used to prevent calling Send__delete__() twice.
   // When this function is called from CompositorBridgeChild::Destroy().
@@ -103,9 +100,11 @@ void WebRenderBridgeChild::UpdateResources(
   }
 
   nsTArray<OpUpdateResource> resourceUpdates;
-  nsTArray<RefCountedShmem> smallShmems;
+  nsTArray<ResourceShmemReference> smallShmems;
   nsTArray<ipc::Shmem> largeShmems;
   aResources.Flush(resourceUpdates, smallShmems, largeShmems);
+
+  FlushPendingRegistrations();
 
   this->SendUpdateResources(mIdNamespace, resourceUpdates, smallShmems,
                             std::move(largeShmems));
@@ -132,6 +131,8 @@ bool WebRenderBridgeChild::EndTransaction(
   if (mManager) {
     mManager->TakeCompositionPayloads(payloads);
   }
+
+  FlushPendingRegistrations();
 
   mSentDisplayList = true;
   bool ret = this->SendSetDisplayList(
@@ -170,6 +171,8 @@ void WebRenderBridgeChild::EndEmptyTransaction(
   if (mManager) {
     mManager->TakeCompositionPayloads(payloads);
   }
+
+  FlushPendingRegistrations();
 
   this->SendEmptyTransaction(
       aFocusTarget, std::move(aTransactionData), mDestroyedActors,
@@ -475,6 +478,17 @@ FwdTransactionCounter& WebRenderBridgeChild::GetFwdTransactionCounter() {
 
 bool WebRenderBridgeChild::InForwarderThread() { return NS_IsMainThread(); }
 
+mozilla::ipc::IPCResult WebRenderBridgeChild::RecvReturnResourceShmems(
+    nsTArray<uint32_t>&& aIds) {
+  for (uint32_t id : aIds) {
+    auto entry = mResourceShmems.Lookup(id);
+    if (entry) {
+      entry.Data().mAvailable = true;
+    }
+  }
+  return IPC_OK();
+}
+
 mozilla::ipc::IPCResult WebRenderBridgeChild::RecvWrUpdated(
     const wr::IdNamespace& aNewIdNamespace,
     const TextureFactoryIdentifier& textureFactoryIdentifier) {
@@ -546,45 +560,50 @@ RefPtr<KnowsCompositor> WebRenderBridgeChild::GetForMedia() {
       GetTextureFactoryIdentifier());
 }
 
-bool WebRenderBridgeChild::AllocResourceShmem(size_t aSize,
-                                              RefCountedShmem& aShm) {
-  // We keep a single shmem around to reuse later if it is reference count has
-  // dropped back to 1 (the reference held by the WebRenderBridgeChild).
-
-  // If the cached shmem exists, has the correct size and isn't held by anything
-  // other than us, recycle it.
-  bool alreadyAllocated = RefCountedShm::IsValid(mResourceShm);
-  if (alreadyAllocated) {
-    if (RefCountedShm::GetSize(mResourceShm) == aSize &&
-        RefCountedShm::GetReferenceCount(mResourceShm) <= 1) {
-      MOZ_ASSERT(RefCountedShm::GetReferenceCount(mResourceShm) == 1);
-      aShm = mResourceShm;
+bool WebRenderBridgeChild::AllocResourceShmem(size_t aSize, uint32_t& aId,
+                                              uint8_t*& aPtr) {
+  // Try to find an available shmem with matching size.
+  for (auto iter = mResourceShmems.Iter(); !iter.Done(); iter.Next()) {
+    auto& entry = iter.Data();
+    if (entry.mAvailable && entry.mSize == aSize) {
+      entry.mAvailable = false;
+      aId = iter.Key();
+      aPtr = entry.mMapping.DataAs<uint8_t>();
       return true;
     }
   }
 
-  // If there was no cached shmem or we couldn't recycle it, alloc a new one.
-  if (!RefCountedShm::Alloc(this, aSize, aShm)) {
+  // Allocate a new shared memory region.
+  auto handle = ipc::shared_memory::Create(aSize);
+  if (!handle) {
     return false;
   }
 
-  // Now that we have a valid shmem, put it in the cache if we don't have one
-  // yet.
-  if (!alreadyAllocated) {
-    mResourceShm = aShm;
-    RefCountedShm::AddRef(aShm);
+  auto mapping = handle.Map();
+  if (!mapping) {
+    return false;
   }
+
+  aId = mNextResourceShmemId++;
+  aPtr = mapping.DataAs<uint8_t>();
+
+  // Queue a registration to send to the parent.
+  mPendingRegistrations.AppendElement(
+      ResourceShmemRegistration(aId, aSize, handle.Clone()));
+
+  // Store the entry.
+  mResourceShmems.InsertOrUpdate(
+      aId, ResourceShmemEntry{std::move(mapping), std::move(handle), aSize,
+                              false});
 
   return true;
 }
 
-void WebRenderBridgeChild::DeallocResourceShmem(RefCountedShmem& aShm) {
-  if (!RefCountedShm::IsValid(aShm)) {
-    return;
+void WebRenderBridgeChild::FlushPendingRegistrations() {
+  if (!mPendingRegistrations.IsEmpty() && IPCOpen()) {
+    SendRegisterResourceShmems(std::move(mPendingRegistrations));
   }
-  MOZ_ASSERT(RefCountedShm::GetReferenceCount(aShm) == 0);
-
-  RefCountedShm::Dealloc(this, aShm);
+  mPendingRegistrations.Clear();
 }
 
 void WebRenderBridgeChild::Capture() { this->SendCapture(); }

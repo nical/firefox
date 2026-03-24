@@ -13,6 +13,8 @@
 #include "mozilla/layers/CompositableTransactionParent.h"
 #include "mozilla/layers/CompositorVsyncSchedulerOwner.h"
 #include "mozilla/layers/PWebRenderBridgeParent.h"
+#include "mozilla/ipc/SharedMemoryHandle.h"
+#include "mozilla/ipc/SharedMemoryMapping.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/webrender/WebRenderTypes.h"
@@ -122,10 +124,14 @@ class WebRenderBridgeParent final : public PWebRenderBridgeParent,
   mozilla::ipc::IPCResult RecvShutdownSync() override;
   mozilla::ipc::IPCResult RecvDeleteCompositorAnimations(
       nsTArray<uint64_t>&& aIds) override;
+  mozilla::ipc::IPCResult RecvRegisterResourceShmems(
+      nsTArray<ResourceShmemRegistration>&& aShmems) override;
+  mozilla::ipc::IPCResult RecvUnregisterResourceShmems(
+      nsTArray<uint32_t>&& aIds) override;
   mozilla::ipc::IPCResult RecvUpdateResources(
       const wr::IdNamespace& aIdNamespace,
       nsTArray<OpUpdateResource>&& aUpdates,
-      nsTArray<RefCountedShmem>&& aSmallShmems,
+      nsTArray<ResourceShmemReference>&& aSmallShmems,
       nsTArray<ipc::Shmem>&& aLargeShmems) override;
   mozilla::ipc::IPCResult RecvSetDisplayList(
       DisplayListData&& aDisplayList, nsTArray<OpDestroy>&& aToDestroy,
@@ -350,7 +356,7 @@ class WebRenderBridgeParent final : public PWebRenderBridgeParent,
                       ipc::ByteBuf&& aDLCache, ipc::ByteBuf&& aSpatialTreeDL,
                       const wr::BuiltDisplayListDescriptor& aDLDesc,
                       const nsTArray<OpUpdateResource>& aResourceUpdates,
-                      const nsTArray<RefCountedShmem>& aSmallShmems,
+                      const nsTArray<ResourceShmemReference>& aSmallShmems,
                       const nsTArray<ipc::Shmem>& aLargeShmems,
                       const TimeStamp& aTxnStartTime,
                       wr::TransactionBuilder& aTxn, wr::Epoch aWrEpoch,
@@ -363,9 +369,12 @@ class WebRenderBridgeParent final : public PWebRenderBridgeParent,
                               uint32_t aPaintSequenceNumber);
 
   bool UpdateResources(const nsTArray<OpUpdateResource>& aResourceUpdates,
-                       const nsTArray<RefCountedShmem>& aSmallShmems,
+                       const nsTArray<ResourceShmemReference>& aSmallShmems,
                        const nsTArray<ipc::Shmem>& aLargeShmems,
                        wr::TransactionBuilder& aUpdates);
+
+  void ReturnResourceShmems(
+      const nsTArray<ResourceShmemReference>& aSmallShmems);
   bool AddSharedExternalImage(wr::ExternalImageId aExtId, wr::ImageKey aKey,
                               wr::TransactionBuilder& aResources);
   bool UpdateSharedExternalImage(
@@ -543,6 +552,8 @@ class WebRenderBridgeParent final : public PWebRenderBridgeParent,
       mPendingScrollPayloads{"WebRenderBridgeParent::mPendingScrollPayloads"};
 
   RefPtr<RemoteTextureTxnScheduler> mRemoteTextureTxnScheduler;
+
+  nsTHashMap<nsUint32HashKey, ipc::SharedMemoryMapping> mResourceShmems;
 };
 
 // Use this class, since WebRenderBridgeParent could not supports

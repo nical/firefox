@@ -31,12 +31,19 @@ using mozilla::ImageIntRect from "Units.h";
 using mozilla::gfx::Rect from "mozilla/gfx/Rect.h";
 using mozilla::gfx::Matrix4x4 from "mozilla/gfx/Matrix.h";
 using struct mozilla::void_t from "mozilla/ipc/IPCCore.h";
+[MoveOnly] using mozilla::ipc::MutableSharedMemoryHandle from "mozilla/ipc/SharedMemoryHandle.h";
 
 namespace mozilla {
 namespace layers {
 
-struct RefCountedShmem {
-  Shmem buffer;
+struct ResourceShmemReference {
+  uint32_t id;
+};
+
+struct ResourceShmemRegistration {
+  uint32_t id;
+  uint32_t size;
+  MutableSharedMemoryHandle handle;
 };
 
 struct OpAddSharedExternalImage {

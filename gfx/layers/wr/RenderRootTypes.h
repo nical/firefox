@@ -23,7 +23,7 @@ struct DisplayListData {
   Maybe<mozilla::ipc::ByteBuf> mDLSpatialTree;
   wr::BuiltDisplayListDescriptor mDLDesc;
   nsTArray<OpUpdateResource> mResourceUpdates;
-  nsTArray<RefCountedShmem> mSmallShmems;
+  nsTArray<ResourceShmemReference> mSmallShmems;
   nsTArray<mozilla::ipc::Shmem> mLargeShmems;
   Maybe<WebRenderScrollData> mScrollData;
 };
@@ -32,7 +32,7 @@ struct TransactionData {
   wr::IdNamespace mIdNamespace;
   nsTArray<WebRenderParentCommand> mCommands;
   nsTArray<OpUpdateResource> mResourceUpdates;
-  nsTArray<RefCountedShmem> mSmallShmems;
+  nsTArray<ResourceShmemReference> mSmallShmems;
   nsTArray<mozilla::ipc::Shmem> mLargeShmems;
   ScrollUpdatesMap mScrollUpdates;
   uint32_t mPaintSequenceNumber;

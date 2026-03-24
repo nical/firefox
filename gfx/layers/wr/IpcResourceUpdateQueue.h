@@ -6,9 +6,12 @@
 #define GFX_WR_IPCRESOURCEUPDATEQUEUE_H
 
 #include "mozilla/layers/WebRenderMessages.h"
-#include "mozilla/layers/RefCountedShmem.h"
 #include "mozilla/layers/TextureClient.h"
 #include "mozilla/webrender/WebRenderTypes.h"
+#include "mozilla/ipc/SharedMemoryHandle.h"
+#include "mozilla/ipc/SharedMemoryMapping.h"
+#include "nsHashKeys.h"
+#include "nsTHashMap.h"
 
 namespace mozilla {
 namespace ipc {
@@ -20,6 +23,12 @@ class WebRenderBridgeChild;
 }  // namespace layers
 
 namespace wr {
+
+struct ShmChunk {
+  uint32_t mId;
+  uint8_t* mData;
+  size_t mSize;
+};
 
 /// ShmSegmentsWriter pushes bytes in a sequence of fixed size shmems for small
 /// allocations and creates dedicated shmems for large allocations.
@@ -43,7 +52,7 @@ class ShmSegmentsWriter {
                                 aValues.length() * sizeof(T)));
   }
 
-  void Flush(nsTArray<layers::RefCountedShmem>& aSmallAllocs,
+  void Flush(nsTArray<layers::ResourceShmemReference>& aSmallAllocs,
              nsTArray<mozilla::ipc::Shmem>& aLargeAllocs);
 
   void Clear();
@@ -56,7 +65,7 @@ class ShmSegmentsWriter {
   bool AllocChunk();
   layers::OffsetRange AllocLargeChunk(size_t aSize);
 
-  nsTArray<layers::RefCountedShmem> mSmallAllocs;
+  nsTArray<ShmChunk> mSmallAllocs;
   nsTArray<mozilla::ipc::Shmem> mLargeAllocs;
   layers::WebRenderBridgeChild* mShmAllocator;
   size_t mCursor;
@@ -65,8 +74,11 @@ class ShmSegmentsWriter {
 
 class ShmSegmentsReader {
  public:
-  ShmSegmentsReader(const nsTArray<layers::RefCountedShmem>& aSmallShmems,
-                    const nsTArray<mozilla::ipc::Shmem>& aLargeShmems);
+  ShmSegmentsReader(
+      const nsTArray<layers::ResourceShmemReference>& aSmallShmemRefs,
+      const nsTHashMap<nsUint32HashKey, mozilla::ipc::SharedMemoryMapping>&
+          aShmemRegistry,
+      const nsTArray<mozilla::ipc::Shmem>& aLargeShmems);
 
   bool Read(const layers::OffsetRange& aRange, wr::Vec<uint8_t>& aInto);
 
@@ -98,7 +110,12 @@ class ShmSegmentsReader {
 
   Maybe<Range<uint8_t>> GetReadPointerLarge(const layers::OffsetRange& aRange);
 
-  const nsTArray<layers::RefCountedShmem>& mSmallAllocs;
+  // Resolved pointers and sizes for each small alloc chunk.
+  struct ResolvedChunk {
+    uint8_t* mData;
+    size_t mSize;
+  };
+  nsTArray<ResolvedChunk> mSmallAllocs;
   const nsTArray<mozilla::ipc::Shmem>& mLargeAllocs;
   size_t mChunkSize;
 };
@@ -107,12 +124,11 @@ class IpcResourceUpdateQueue {
  public:
   // Because we are using shmems, the size should be a multiple of the page
   // size. Each shmem has two guard pages, and the minimum shmem size (at least
-  // one Windows) is 64k which is already quite large for a lot of the resources
-  // we use here. The RefCountedShmem type used to allocate the chunks keeps a
-  // 16 bytes header in the buffer which we account for here as well. So we pick
-  // 64k - 2 * 4k - 16 = 57328 bytes as the default alloc size.
+  // on Windows) is 64k which is already quite large for a lot of the resources
+  // we use here. So we pick 64k - 2 * 4k = 57344 bytes as the default alloc
+  // size.
   explicit IpcResourceUpdateQueue(layers::WebRenderBridgeChild* aAllocator,
-                                  size_t aChunkSize = 57328);
+                                  size_t aChunkSize = 57344);
 
   IpcResourceUpdateQueue(IpcResourceUpdateQueue&& aOther) noexcept;
   IpcResourceUpdateQueue& operator=(IpcResourceUpdateQueue&& aOther) noexcept;
@@ -176,13 +192,11 @@ class IpcResourceUpdateQueue {
   void Clear();
 
   void Flush(nsTArray<layers::OpUpdateResource>& aUpdates,
-             nsTArray<layers::RefCountedShmem>& aSmallAllocs,
+             nsTArray<layers::ResourceShmemReference>& aSmallAllocs,
              nsTArray<mozilla::ipc::Shmem>& aLargeAllocs);
 
   bool IsEmpty() const;
 
-  static void ReleaseShmems(mozilla::ipc::IProtocol*,
-                            nsTArray<layers::RefCountedShmem>& aShms);
   static void ReleaseShmems(mozilla::ipc::IProtocol*,
                             nsTArray<mozilla::ipc::Shmem>& aShms);
 

@@ -7,6 +7,8 @@
 
 #include "mozilla/layers/CompositableForwarder.h"
 #include "mozilla/layers/PWebRenderBridgeChild.h"
+#include "mozilla/ipc/SharedMemoryHandle.h"
+#include "mozilla/ipc/SharedMemoryMapping.h"
 
 namespace mozilla {
 
@@ -171,16 +173,13 @@ class WebRenderBridgeChild final : public PWebRenderBridgeChild,
 
   RefPtr<KnowsCompositor> GetForMedia() override;
 
-  /// Alloc a specific type of shmem that is intended for use in
-  /// IpcResourceUpdateQueue only, and cache at most one of them,
-  /// when called multiple times.
-  ///
-  /// Do not use this for anything else.
-  bool AllocResourceShmem(size_t aSize, RefCountedShmem& aShm);
-  /// Dealloc shared memory that was allocated with AllocResourceShmem.
-  ///
-  /// Do not use this for anything else.
-  void DeallocResourceShmem(RefCountedShmem& aShm);
+  /// Allocate a shared memory region for use in IpcResourceUpdateQueue.
+  /// Returns the shmem ID and a pointer to the writable data.
+  /// New shmems are queued for registration with the parent.
+  bool AllocResourceShmem(size_t aSize, uint32_t& aId, uint8_t*& aPtr);
+
+  /// Send any pending shmem registrations to the parent.
+  void FlushPendingRegistrations();
 
   void Capture();
   void StartCaptureSequence(const nsCString& path, uint32_t aFlags);
@@ -222,6 +221,8 @@ class WebRenderBridgeChild final : public PWebRenderBridgeChild,
 
   void DoDestroy();
 
+  mozilla::ipc::IPCResult RecvReturnResourceShmems(
+      nsTArray<uint32_t>&& aIds);
   mozilla::ipc::IPCResult RecvWrUpdated(
       const wr::IdNamespace& aNewIdNamespace,
       const TextureFactoryIdentifier& textureFactoryIdentifier);
@@ -264,7 +265,15 @@ class WebRenderBridgeChild final : public PWebRenderBridgeChild,
   uint32_t mFontInstanceKeysDeleted;
   nsTHashMap<ScaledFontHashKey, wr::FontInstanceKey> mFontInstanceKeys;
 
-  RefCountedShmem mResourceShm;
+  struct ResourceShmemEntry {
+    mozilla::ipc::SharedMemoryMapping mMapping;
+    mozilla::ipc::MutableSharedMemoryHandle mHandle;
+    size_t mSize;
+    bool mAvailable;
+  };
+  uint32_t mNextResourceShmemId = 1;
+  nsTHashMap<nsUint32HashKey, ResourceShmemEntry> mResourceShmems;
+  nsTArray<ResourceShmemRegistration> mPendingRegistrations;
 };
 
 }  // namespace layers

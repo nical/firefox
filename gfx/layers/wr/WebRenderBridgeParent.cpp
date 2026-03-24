@@ -628,10 +628,10 @@ static bool ReadRawFont(const OpAddRawFont& aOp, wr::ShmSegmentsReader& aReader,
 
 bool WebRenderBridgeParent::UpdateResources(
     const nsTArray<OpUpdateResource>& aResourceUpdates,
-    const nsTArray<RefCountedShmem>& aSmallShmems,
+    const nsTArray<ResourceShmemReference>& aSmallShmems,
     const nsTArray<ipc::Shmem>& aLargeShmems,
     wr::TransactionBuilder& aUpdates) {
-  wr::ShmSegmentsReader reader(aSmallShmems, aLargeShmems);
+  wr::ShmSegmentsReader reader(aSmallShmems, mResourceShmems, aLargeShmems);
   UniquePtr<ScheduleSharedSurfaceRelease> scheduleRelease;
 
   while (GPUParent::MaybeFlushMemory()) {
@@ -1061,13 +1061,44 @@ void WebRenderBridgeParent::ObserveSharedSurfaceRelease(
   }
 }
 
+mozilla::ipc::IPCResult WebRenderBridgeParent::RecvRegisterResourceShmems(
+    nsTArray<ResourceShmemRegistration>&& aShmems) {
+  for (auto& reg : aShmems) {
+    auto mapping = reg.handle().Map();
+    if (mapping) {
+      mResourceShmems.InsertOrUpdate(reg.id(), std::move(mapping));
+    }
+  }
+  return IPC_OK();
+}
+
+mozilla::ipc::IPCResult WebRenderBridgeParent::RecvUnregisterResourceShmems(
+    nsTArray<uint32_t>&& aIds) {
+  for (uint32_t id : aIds) {
+    mResourceShmems.Remove(id);
+  }
+  return IPC_OK();
+}
+
+void WebRenderBridgeParent::ReturnResourceShmems(
+    const nsTArray<ResourceShmemReference>& aSmallShmems) {
+  if (aSmallShmems.IsEmpty()) {
+    return;
+  }
+  nsTArray<uint32_t> ids;
+  for (const auto& ref : aSmallShmems) {
+    ids.AppendElement(ref.id());
+  }
+  (void)SendReturnResourceShmems(ids);
+}
+
 mozilla::ipc::IPCResult WebRenderBridgeParent::RecvUpdateResources(
     const wr::IdNamespace& aIdNamespace,
     nsTArray<OpUpdateResource>&& aResourceUpdates,
-    nsTArray<RefCountedShmem>&& aSmallShmems,
+    nsTArray<ResourceShmemReference>&& aSmallShmems,
     nsTArray<ipc::Shmem>&& aLargeShmems) {
   if (!EnsureInitialized() || aIdNamespace != mLateInit->mIdNamespace) {
-    wr::IpcResourceUpdateQueue::ReleaseShmems(this, aSmallShmems);
+    ReturnResourceShmems(aSmallShmems);
     wr::IpcResourceUpdateQueue::ReleaseShmems(this, aLargeShmems);
     return IPC_OK();
   }
@@ -1084,7 +1115,7 @@ mozilla::ipc::IPCResult WebRenderBridgeParent::RecvUpdateResources(
 
   bool success =
       UpdateResources(aResourceUpdates, aSmallShmems, aLargeShmems, txn);
-  wr::IpcResourceUpdateQueue::ReleaseShmems(this, aSmallShmems);
+  ReturnResourceShmems(aSmallShmems);
   wr::IpcResourceUpdateQueue::ReleaseShmems(this, aLargeShmems);
 
   // Even when txn.IsResourceUpdatesEmpty() is true, there could be resource
@@ -1274,7 +1305,7 @@ bool WebRenderBridgeParent::SetDisplayList(
     ipc::ByteBuf&& aDLCache, ipc::ByteBuf&& aSpatialTreeDL,
     const wr::BuiltDisplayListDescriptor& aDLDesc,
     const nsTArray<OpUpdateResource>& aResourceUpdates,
-    const nsTArray<RefCountedShmem>& aSmallShmems,
+    const nsTArray<ResourceShmemReference>& aSmallShmems,
     const nsTArray<ipc::Shmem>& aLargeShmems, const TimeStamp& aTxnStartTime,
     wr::TransactionBuilder& aTxn, wr::Epoch aWrEpoch, const VsyncId& aVsyncId,
     bool aRenderOffscreen) {
@@ -1385,7 +1416,7 @@ mozilla::ipc::IPCResult WebRenderBridgeParent::RecvSetDisplayList(
     for (const auto& op : aToDestroy) {
       DestroyActor(op);
     }
-    wr::IpcResourceUpdateQueue::ReleaseShmems(this, aDisplayList.mSmallShmems);
+    ReturnResourceShmems(aDisplayList.mSmallShmems);
     wr::IpcResourceUpdateQueue::ReleaseShmems(this, aDisplayList.mLargeShmems);
     return IPC_OK();
   }
@@ -1444,7 +1475,7 @@ mozilla::ipc::IPCResult WebRenderBridgeParent::RecvSetDisplayList(
     }
   }
 
-  wr::IpcResourceUpdateQueue::ReleaseShmems(this, aDisplayList.mSmallShmems);
+  ReturnResourceShmems(aDisplayList.mSmallShmems);
   wr::IpcResourceUpdateQueue::ReleaseShmems(this, aDisplayList.mLargeShmems);
 
   if (!success) {
@@ -1523,8 +1554,7 @@ mozilla::ipc::IPCResult WebRenderBridgeParent::RecvEmptyTransaction(
       DestroyActor(op);
     }
     if (aTransactionData) {
-      wr::IpcResourceUpdateQueue::ReleaseShmems(this,
-                                                aTransactionData->mSmallShmems);
+      ReturnResourceShmems(aTransactionData->mSmallShmems);
       wr::IpcResourceUpdateQueue::ReleaseShmems(this,
                                                 aTransactionData->mLargeShmems);
     }
@@ -1595,8 +1625,7 @@ mozilla::ipc::IPCResult WebRenderBridgeParent::RecvEmptyTransaction(
   }
 
   if (aTransactionData) {
-    wr::IpcResourceUpdateQueue::ReleaseShmems(this,
-                                              aTransactionData->mSmallShmems);
+    ReturnResourceShmems(aTransactionData->mSmallShmems);
     wr::IpcResourceUpdateQueue::ReleaseShmems(this,
                                               aTransactionData->mLargeShmems);
   }
@@ -3008,6 +3037,7 @@ void WebRenderBridgeParent::ClearResources() {
                                                      entry.second);
   }
   mSharedSurfaceIds.clear();
+  mResourceShmems.Clear();
 
   mLateInit->mAsyncImageManager->RemovePipeline(mPipelineId, wrEpoch);
 

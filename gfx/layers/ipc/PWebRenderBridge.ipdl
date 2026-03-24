@@ -60,8 +60,10 @@ parent:
                          nsCString txnURL, TimeStamp fwdTime,
                          CompositionPayload[] payloads);
   async SetFocusTarget(FocusTarget focusTarget);
+  async RegisterResourceShmems(ResourceShmemRegistration[] aShmems);
+  async UnregisterResourceShmems(uint32_t[] aIds);
   async UpdateResources(IdNamespace aIdNamespace, OpUpdateResource[] aResourceUpdates,
-                        RefCountedShmem[] aSmallShmems, Shmem[] aLargeShmems);
+                        ResourceShmemReference[] aSmallShmems, Shmem[] aLargeShmems);
   async ParentCommands(IdNamespace aIdNamespace, WebRenderParentCommand[] commands);
   sync GetSnapshot(PTexture texture) returns (bool aNeedsYFlip);
   async ClearCachedResources();
@@ -127,6 +129,7 @@ parent:
   async Shutdown();
   sync ShutdownSync();
 child:
+  async ReturnResourceShmems(uint32_t[] aIds);
   async WrUpdated(IdNamespace aNewIdNamespace, TextureFactoryIdentifier textureFactoryIdentifier);
   async WrReleasedImages(ExternalImageKeyPair[] pairs);
   async __delete__();
