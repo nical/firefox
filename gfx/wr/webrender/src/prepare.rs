@@ -707,11 +707,11 @@ fn prepare_interned_prim_for_render(
                         .get_target_size()
                         .to_f32();
 
-                    let segment_local_rect = segment.local_rect.translate(offset);
+                    let mut segment_local_rect = segment.local_rect.translate(offset);
 
                     let mut stretch_size = segment_local_rect.size();
                     let mut spacing = LayoutSize::zero();
-                    let mut _offset = LayoutVector2D::zero();
+                    let mut offset = LayoutVector2D::zero();
                     crate::border::compute_border_repetition(
                         segment_local_rect.size(),
                         src_size,
@@ -719,8 +719,10 @@ fn prepare_interned_prim_for_render(
                         repeat_y,
                         &mut stretch_size,
                         &mut spacing,
-                        &mut _offset,
+                        &mut offset,
                     );
+
+                    segment_local_rect.min += offset;
 
                     quad::prepare_repeatable_quad(
                         &pattern,
