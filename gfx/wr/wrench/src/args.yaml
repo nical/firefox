@@ -87,6 +87,23 @@ subcommands:
               long: surface
               help: 'What rendered surface to save as PNG, one of: screen, gpu-cache'
               takes_value: true
+          - list-resources:
+              long: list-resources
+              help: List the resources used by this render (YAML only)
+          - keyframes:
+              short: k
+              long: keyframes
+              takes_value: true
+              help: Provide a keyframes file, that can be used to animate the yaml input file
+          - scene-id:
+              long: scene-id
+              takes_value: true
+              help: Select a starting scene sequence ID (YAML capture sequence only).
+          - frame-id:
+              short: f
+              long: frame-id
+              takes_value: true
+              help: Select a starting frame sequence ID (YAML capture sequence only).
           - INPUT:
               help: The input YAML file
               required: true
