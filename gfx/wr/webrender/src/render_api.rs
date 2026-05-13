@@ -1368,16 +1368,18 @@ impl RenderApi {
     /// drop the `Renderer` (and its `result_rx`) afterwards.
     ///
     /// If this is the last window on the thread, the thread exits;
-    /// otherwise it keeps serving the remaining windows.
+    /// otherwise it keeps serving the remaining windows. If the api
+    /// channel is already closed (e.g. because an earlier call already
+    /// took the last window off the thread) this is a silent no-op.
     pub fn stop_render_backend(&self) {
         let (tx, rx) = single_msg_channel();
-        self.api_sender
+        if self.api_sender
             .send(ApiMsg::UnregisterWindow(self.backend_id, Some(tx)))
-            .expect("api channel closed before stop_render_backend");
-        // Wait for the backend to confirm it has dropped the window. If the
-        // backend has already exited (e.g. via another path) the recv
-        // returns Err — there is nothing left to drain in that case.
-        let _ = rx.recv();
+            .is_ok()
+        {
+            // Wait for the backend to confirm it has dropped the window.
+            let _ = rx.recv();
+        }
     }
 
     /// Shut the WebRender instance down.
@@ -1387,15 +1389,18 @@ impl RenderApi {
     /// same drain-before-destroy guarantee as `stop_render_backend`.
     ///
     /// Calling `stop_render_backend` followed by `shut_down(true)` is
-    /// safe — the second call's `UnregisterWindow` is a no-op on the
-    /// backend (the window is already gone) but the ack still fires.
+    /// safe — by the time `shut_down` runs the backend may have already
+    /// exited (and closed the api channel). In that case the send is a
+    /// no-op and the function returns immediately.
     pub fn shut_down(&self, synchronously: bool) {
         if synchronously {
             let (tx, rx) = single_msg_channel();
-            self.api_sender
+            if self.api_sender
                 .send(ApiMsg::UnregisterWindow(self.backend_id, Some(tx)))
-                .expect("api channel closed before shut_down");
-            let _ = rx.recv();
+                .is_ok()
+            {
+                let _ = rx.recv();
+            }
         } else {
             // Fire-and-forget: the caller opted out of the drain barrier.
             let _ = self.api_sender.send(

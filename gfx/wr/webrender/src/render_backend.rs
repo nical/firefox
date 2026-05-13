@@ -996,14 +996,14 @@ impl RenderBackend {
                 Err(..) => { RenderBackendStatus::ShutDown(None) }
             };
 
-            // When the last window is unregistered, the backend thread has
-            // nothing useful left to do; exit the loop so it can be torn
-            // down. With pref `gfx.webrender.render-backend-thread-count`
-            // = 0 the lone window unregisters on `shut_down` and the
-            // thread exits, matching the historical behavior. With a
-            // shared pool, the thread keeps running while at least one
-            // window is registered.
+            // When the last window is unregistered the backend has nothing
+            // useful left to do. Ask the scene builder to drain and exit,
+            // then keep processing the api channel below until the scene
+            // builder's response arrives. This makes sure any in-flight
+            // results destined for our api channel reach us (and that any
+            // embedded ack channels are signaled) before we tear down.
             if matches!(status, RenderBackendStatus::Continue) && self.windows.is_empty() {
+                let _ = self.scene_tx.send(SceneBuilderRequest::ShutDown(None));
                 break;
             }
         }
@@ -1012,7 +1012,9 @@ impl RenderBackend {
             while let Ok(msg) = self.api_rx.recv() {
                 match msg {
                     ApiMsg::SceneBuilderResult(SceneBuilderResult::ExternalEvent(evt)) => {
-                        self.window_mut().notifier.external_event(evt);
+                        if let Some(win) = self.windows.values_mut().next() {
+                            win.notifier.external_event(evt);
+                        }
                     }
                     ApiMsg::SceneBuilderResult(SceneBuilderResult::FlushComplete(tx)) => {
                         // If somebody's blocked waiting for a flush, how did they
@@ -1033,18 +1035,23 @@ impl RenderBackend {
             }
         }
 
-        // Ensure we read everything the scene builder is sending us from
-        // inflight messages, otherwise the scene builder might panic.
-        while let Ok(msg) = self.api_rx.try_recv() {
+        // Drain remaining api messages until the scene builder confirms it
+        // has exited. This lets the SB push out its in-flight results
+        // (including transactions and flush responses) without panicking on
+        // a closed channel, and lets late `UnregisterWindow` / shutdown
+        // calls from the api side get their ack channels signaled before
+        // we drop the receiver.
+        while let Ok(msg) = self.api_rx.recv() {
             match msg {
+                ApiMsg::SceneBuilderResult(SceneBuilderResult::ShutDown(_)) => break,
                 ApiMsg::SceneBuilderResult(SceneBuilderResult::FlushComplete(tx)) => {
-                    // If somebody's blocked waiting for a flush, how did they
-                    // trigger the RB thread to shut down? This shouldn't happen
-                    // but handle it gracefully anyway.
-                    debug_assert!(false);
-                    tx.send(()).ok();
+                    let _ = tx.send(());
                 }
-                _ => {},
+                ApiMsg::UnregisterWindow(_, Some(ack)) => {
+                    let _ = ack.send(());
+                }
+                ApiMsg::UnregisterWindow(_, None) => {}
+                _ => {}
             }
         }
 
@@ -1078,7 +1085,20 @@ impl RenderBackend {
         for mut txn in txns.drain(..) {
            let has_built_scene = txn.built_scene.is_some();
 
-            let win = self.windows.values_mut().next().unwrap();
+            // Look up the window that owns this document. The window may
+            // have been unregistered between the scene builder enqueueing
+            // this transaction and us getting here, in which case both the
+            // document and the routing entry are gone — drop the txn.
+            let win_id = match self.document_to_window.get(&txn.document_id) {
+                Some(id) => *id,
+                None => {
+                    if let Some(ref tx) = result_tx {
+                        tx.send(SceneSwapResult::Aborted).unwrap();
+                    }
+                    continue;
+                }
+            };
+            let win = self.windows.get_mut(&win_id).unwrap();
             if let Some(doc) = self.documents.get_mut(&txn.document_id) {
                 doc.removed_pipelines.append(&mut txn.removed_pipelines);
                 doc.view.scene = txn.view;
@@ -1504,7 +1524,14 @@ impl RenderBackend {
         // from the pool. The underlying deallocation can be expensive, especially
         // with build configurations where all of the memory is zeroed, so we
         // spread the load over potentially many iterations of the event loop.
-        self.window().chunk_pool.purge_chunks(2, 3);
+        //
+        // The check guards against the case where the message we just
+        // processed was `UnregisterWindow` for the last window; the run
+        // loop will exit on its next iteration but we still finish this
+        // call cleanly.
+        if let Some(win) = self.windows.values().next() {
+            win.chunk_pool.purge_chunks(2, 3);
+        }
 
         RenderBackendStatus::Continue
     }
