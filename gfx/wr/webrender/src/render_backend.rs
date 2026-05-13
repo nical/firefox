@@ -23,7 +23,11 @@ use crate::prim_store::rectangle::RectanglePrim;
 use crate::render_api::CaptureBits;
 #[cfg(feature = "replay")]
 use crate::render_api::CapturedDocument;
-use crate::render_api::{MemoryReport, TransactionMsg, ResourceUpdate, ApiMsg, FrameMsg, ClearCache, DebugCommand, WindowRegistration};
+use crate::glyph_cache::GlyphCache;
+use crate::picture_textures::PictureTextures;
+use crate::render_api::{MemoryReport, TransactionMsg, ResourceUpdate, ApiMsg, FrameMsg, ClearCache, DebugCommand, ResourceCacheInit, WindowRegistration};
+use crate::texture_cache::TextureCache;
+use glyph_rasterizer::GlyphRasterizer;
 use crate::clip::{ClipIntern, PolygonIntern, ClipStoreScratchBuffer};
 use crate::filterdata::FilterDataIntern;
 #[cfg(any(feature = "capture", feature = "replay"))]
@@ -804,6 +808,56 @@ pub struct RenderBackend {
     namespace_alloc_by_client: bool,
 }
 
+/// Build a `ResourceCache` (and its sub-caches) from the params shipped via
+/// `WindowRegistration`. Called on the render-backend thread so that the
+/// allocations are attributed there.
+fn build_resource_cache(init: ResourceCacheInit) -> ResourceCache {
+    let ResourceCacheInit {
+        max_internal_texture_size,
+        image_tiling_threshold,
+        color_cache_formats,
+        swizzle_settings,
+        texture_cache_config,
+        picture_tile_size,
+        picture_texture_filter,
+        workers,
+        dedicated_glyph_raster_thread,
+        supports_r8_texture_upload,
+        fonts,
+        blob_image_handler,
+        enable_multithreading,
+    } = init;
+
+    let texture_cache = TextureCache::new(
+        max_internal_texture_size,
+        image_tiling_threshold,
+        color_cache_formats,
+        swizzle_settings,
+        &texture_cache_config,
+    );
+    let picture_textures = PictureTextures::new(
+        picture_tile_size,
+        picture_texture_filter,
+    );
+    let glyph_rasterizer = GlyphRasterizer::new(
+        workers,
+        dedicated_glyph_raster_thread,
+        supports_r8_texture_upload,
+    );
+    let glyph_cache = GlyphCache::new();
+
+    let mut resource_cache = ResourceCache::new(
+        texture_cache,
+        picture_textures,
+        glyph_rasterizer,
+        glyph_cache,
+        fonts,
+        blob_image_handler,
+    );
+    resource_cache.enable_multithreading(enable_multithreading);
+    resource_cache
+}
+
 impl RenderBackend {
     pub fn new(
         api_rx: Receiver<ApiMsg>,
@@ -822,10 +876,12 @@ impl RenderBackend {
         }
     }
 
-    /// Install a window. Called via `ApiMsg::RegisterWindow`, and also
-    /// synchronously by `renderer::init` before the message loop starts so
-    /// that the backend has a window ready when the first transaction
-    /// arrives.
+    /// Install a window. Called via `ApiMsg::RegisterWindow`.
+    ///
+    /// `ResourceCache` (and its sub-caches) are constructed here, on the
+    /// render-backend thread, so that their allocations are attributed to
+    /// the thread that ultimately owns them. The caller ships only
+    /// [`ResourceCacheInit`] params across the api channel.
     pub fn register_window(&mut self, reg: Box<WindowRegistration>) {
         let WindowRegistration {
             id,
@@ -841,6 +897,8 @@ impl RenderBackend {
         if let Some(ref sampler) = sampler {
             sampler.register();
         }
+
+        let resource_cache = build_resource_cache(resource_cache);
 
         let window = WindowState {
             result_tx,
@@ -1156,6 +1214,9 @@ impl RenderBackend {
             ApiMsg::CloneApiByClient(namespace_id) => {
                 assert!(self.namespace_alloc_by_client);
                 debug_assert!(!self.documents.iter().any(|(did, _doc)| did.namespace_id == namespace_id));
+            }
+            ApiMsg::RegisterWindow(reg) => {
+                self.register_window(reg);
             }
             ApiMsg::UnregisterWindow(id) => {
                 self.unregister_window(id);

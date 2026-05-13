@@ -25,12 +25,15 @@ use crate::api::{RenderBackendId, RenderNotifier};
 use crate::api::DEFAULT_TILE_SIZE;
 use crate::api::units::*;
 use crate::api_resources::ApiResources;
+use crate::api::ImageFormat;
 use crate::bump_allocator::ChunkPool;
+use crate::device::{TextureFilter, TextureFormatPair};
 use crate::frame_builder::FrameBuilderConfig;
-use crate::internal_types::ResultMsg;
-use crate::resource_cache::ResourceCache;
+use crate::internal_types::{ResultMsg, SwizzleSettings};
+use crate::texture_cache::TextureCacheConfig;
 use crate::AsyncPropertySampler;
-use glyph_rasterizer::SharedFontResources;
+use glyph_rasterizer::{GlyphRasterThread, SharedFontResources};
+use rayon::ThreadPool;
 use crate::scene_builder_thread::{SceneBuilderRequest, SceneBuilderResult};
 use crate::intern::InterningMemoryReport;
 use crate::profiler::{self, TransactionProfile};
@@ -1000,11 +1003,11 @@ pub enum DebugCommand {
 
 /// Initial state handed to `RenderBackend::register_window`.
 ///
-/// Note: this struct contains `!Send` data (the `ResourceCache` transitively
-/// holds an `Rc<Cell<bool>>`), so registration can only happen on the render
-/// backend's own thread. It is *not* carried through an `ApiMsg` variant.
-/// Once the `!Send` pieces are restructured, a future step may introduce a
-/// cross-thread `RegisterWindow` message.
+/// Sent across the api channel via `ApiMsg::RegisterWindow`, so all fields
+/// must be `Send`. The `ResourceCache` itself isn't carried here — instead
+/// we ship the [`ResourceCacheInit`] params so that the backend thread
+/// constructs `ResourceCache` (and its sub-caches) locally. This keeps the
+/// allocations attributed to the thread that ultimately owns them.
 pub struct WindowRegistration {
     /// The id assigned to the window. Used to route subsequent messages.
     pub id: RenderBackendId,
@@ -1015,8 +1018,9 @@ pub struct WindowRegistration {
     pub notifier: Box<dyn RenderNotifier>,
     /// Optional sampler invoked just before frame building.
     pub sampler: Option<Box<dyn AsyncPropertySampler + Send>>,
-    /// CPU-side bookkeeping for the window's GPU resources.
-    pub resource_cache: ResourceCache,
+    /// Params used to construct the window's `ResourceCache` on the
+    /// render-backend thread.
+    pub resource_cache: ResourceCacheInit,
     /// Pool of large memory chunks used by per-frame allocators.
     pub chunk_pool: Arc<ChunkPool>,
     /// Initial frame-builder configuration.
@@ -1025,12 +1029,46 @@ pub struct WindowRegistration {
     pub debug_flags: DebugFlags,
 }
 
+/// Parameters needed to construct a window's `ResourceCache` (plus its
+/// sub-caches) on the render backend thread.
+pub struct ResourceCacheInit {
+    /// Maximum texture size for the texture cache.
+    pub max_internal_texture_size: i32,
+    /// Threshold above which images get tiled.
+    pub image_tiling_threshold: i32,
+    /// Preferred color formats reported by the device.
+    pub color_cache_formats: TextureFormatPair<ImageFormat>,
+    /// Swizzle settings reported by the device.
+    pub swizzle_settings: Option<SwizzleSettings>,
+    /// Per-window texture cache budget configuration.
+    pub texture_cache_config: TextureCacheConfig,
+    /// Tile size used for picture caches.
+    pub picture_tile_size: api::units::DeviceIntSize,
+    /// Filter used for picture-cache textures.
+    pub picture_texture_filter: TextureFilter,
+    /// Worker thread pool used by the glyph rasterizer.
+    pub workers: Arc<ThreadPool>,
+    /// Optional dedicated glyph raster thread handle.
+    pub dedicated_glyph_raster_thread: Option<GlyphRasterThread>,
+    /// Whether the device supports r8 texture uploads.
+    pub supports_r8_texture_upload: bool,
+    /// Shared font resources used by the scene builder and frame builder.
+    pub fonts: SharedFontResources,
+    /// Optional blob image handler used to rasterize blob images for this window.
+    pub blob_image_handler: Option<Box<dyn crate::api::BlobImageHandler>>,
+    /// Whether the resource cache may use parallel work.
+    pub enable_multithreading: bool,
+}
+
 /// Message sent by the `RenderApi` to the render backend thread.
 pub enum ApiMsg {
     /// Adds a new document namespace.
     CloneApi(Sender<IdNamespace>),
     /// Adds a new document namespace.
     CloneApiByClient(IdNamespace),
+    /// Register a new window on this backend thread. Sent once per window,
+    /// before any `AddDocument` referencing the same `RenderBackendId`.
+    RegisterWindow(Box<WindowRegistration>),
     /// Unregister a window from this render backend thread.
     UnregisterWindow(RenderBackendId),
     /// Adds a new document with given initial size, owned by the given window.
@@ -1052,6 +1090,7 @@ impl fmt::Debug for ApiMsg {
         f.write_str(match *self {
             ApiMsg::CloneApi(..) => "ApiMsg::CloneApi",
             ApiMsg::CloneApiByClient(..) => "ApiMsg::CloneApiByClient",
+            ApiMsg::RegisterWindow(..) => "ApiMsg::RegisterWindow",
             ApiMsg::UnregisterWindow(..) => "ApiMsg::UnregisterWindow",
             ApiMsg::AddDocument(..) => "ApiMsg::AddDocument",
             ApiMsg::UpdateDocuments(..) => "ApiMsg::UpdateDocuments",

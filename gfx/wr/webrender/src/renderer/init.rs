@@ -10,23 +10,20 @@ use api::channel::unbounded_channel;
 pub use api::DebugFlags;
 
 use crate::bump_allocator::ChunkPool;
-use crate::render_api::{RenderApiSender, FrameMsg, WindowRegistration};
+use crate::render_api::{ApiMsg, RenderApiSender, FrameMsg, ResourceCacheInit, WindowRegistration};
+use crate::render_backend_pool::{PoolMemberSetup, RenderBackendPool};
 use crate::composite::{CompositorKind, CompositorConfig};
 use crate::device::{
     UploadMethod, UploadPBOPool, VertexUsageHint, Device, ProgramCache, TextureFilter
 };
 use crate::frame_builder::FrameBuilderConfig;
-use crate::glyph_cache::GlyphCache;
-use glyph_rasterizer::{GlyphRasterThread, GlyphRasterizer, SharedFontResources};
+use glyph_rasterizer::{GlyphRasterThread, SharedFontResources};
 use crate::gpu_types::PrimitiveInstanceData;
 use crate::internal_types::{FastHashMap, FastHashSet};
 use crate::profiler::{self, Profiler, TransactionProfile};
 use crate::device::query::{GpuProfiler, GpuDebugMethod};
 use crate::render_backend::RenderBackend;
-use crate::resource_cache::ResourceCache;
-use crate::scene_builder_thread::{SceneBuilderThread, SceneBuilderThreadChannels, LowPrioritySceneBuilderThread};
-use crate::texture_cache::{TextureCache, TextureCacheConfig};
-use crate::picture_textures::PictureTextures;
+use crate::texture_cache::TextureCacheConfig;
 use crate::renderer::{
     debug, vertex, gl,
     Renderer, DebugOverlayState, BufferDamageTracker, PipelineInfo, TextureResolver,
@@ -39,7 +36,6 @@ use crate::debugger::Debugger;
 
 use std::{
     mem,
-    thread,
     cell::RefCell,
     collections::VecDeque,
     rc::Rc,
@@ -160,6 +156,11 @@ pub struct WebRenderOptions {
     pub renderer_id: Option<u64>,
     pub scene_builder_hooks: Option<Box<dyn SceneBuilderHooks + Send>>,
     pub render_backend_hooks: Option<Box<dyn RenderBackendHooks + Send>>,
+    /// Optional shared render backend pool. When provided, the new window is
+    /// assigned to one of the pool's existing backend threads round-robin.
+    /// When `None`, a private size-1 pool is created so the new window has
+    /// its own dedicated backend thread (the historical behavior).
+    pub render_backend_pool: Option<Arc<RenderBackendPool>>,
     pub sampler: Option<Box<dyn AsyncPropertySampler + Send>>,
     pub support_low_priority_transactions: bool,
     pub namespace_alloc_by_client: bool,
@@ -263,6 +264,7 @@ impl Default for WebRenderOptions {
             cached_programs: None,
             scene_builder_hooks: None,
             render_backend_hooks: None,
+            render_backend_pool: None,
             sampler: None,
             support_low_priority_transactions: false,
             namespace_alloc_by_client: false,
@@ -340,7 +342,8 @@ pub fn create_webrender_instance(
         }
     }
 
-    let (api_tx, api_rx) = unbounded_channel();
+    // `api_tx` is obtained from the render backend pool further down; only
+    // the result channel is created here, since the renderer owns its rx end.
     let (result_tx, result_rx) = unbounded_channel();
     let gl_type = gl.get_type();
 
@@ -604,64 +607,14 @@ pub fn create_webrender_instance(
     let fonts = SharedFontResources::new(font_namespace);
 
     let blob_image_handler = options.blob_image_handler.take();
-    let scene_builder_hooks = options.scene_builder_hooks;
-    let rb_thread_name = format!("WRRenderBackend#{}", options.renderer_id.unwrap_or(0));
-    let scene_thread_name = format!("WRSceneBuilder#{}", options.renderer_id.unwrap_or(0));
-    let lp_scene_thread_name = format!("WRSceneBuilderLP#{}", options.renderer_id.unwrap_or(0));
-
-    let glyph_rasterizer = GlyphRasterizer::new(
-        workers,
-        options.dedicated_glyph_raster_thread,
-        device.get_capabilities().supports_r8_texture_upload,
-    );
-
-    let (scene_builder_channels, scene_tx) =
-        SceneBuilderThreadChannels::new(api_tx.clone());
-
-    let sb_fonts = fonts.clone();
-
-    thread::Builder::new().name(scene_thread_name.clone()).spawn(move || {
-        register_thread_with_profiler(scene_thread_name.clone());
-        profiler::register_thread(&scene_thread_name);
-
-        let mut scene_builder = SceneBuilderThread::new(
-            config,
-            sb_fonts,
-            make_size_of_ops(),
-            scene_builder_hooks,
-            scene_builder_channels,
-        );
-        scene_builder.run();
-
-        profiler::unregister_thread();
-    })?;
-
-    let low_priority_scene_tx = if options.support_low_priority_transactions {
-        let (low_priority_scene_tx, low_priority_scene_rx) = unbounded_channel();
-        let lp_builder = LowPrioritySceneBuilderThread {
-            rx: low_priority_scene_rx,
-            tx: scene_tx.clone(),
-            tile_pool: api::BlobTilePool::new(),
-        };
-
-        thread::Builder::new().name(lp_scene_thread_name.clone()).spawn(move || {
-            register_thread_with_profiler(lp_scene_thread_name.clone());
-            profiler::register_thread(&lp_scene_thread_name);
-
-            let mut scene_builder = lp_builder;
-            scene_builder.run();
-
-            profiler::unregister_thread();
-        })?;
-
-        low_priority_scene_tx
-    } else {
-        scene_tx.clone()
-    };
+    let mut scene_builder_hooks = options.scene_builder_hooks.take();
+    let mut render_backend_hooks = options.render_backend_hooks.take();
 
     let rb_blob_handler = blob_image_handler
         .as_ref()
         .map(|handler| handler.create_similar());
+
+    let supports_r8_texture_upload = device.get_capabilities().supports_r8_texture_upload;
 
     let texture_cache_config = options.texture_cache_config.clone();
     let mut picture_tile_size = options.picture_tile_size.unwrap_or(crate::tile_cache::TILE_SIZE_DEFAULT);
@@ -675,68 +628,73 @@ pub fn create_webrender_instance(
         TextureFilter::Nearest
     };
 
-    let render_backend_hooks = options.render_backend_hooks.take();
-
     let chunk_pool = options.chunk_pool.take().unwrap_or_else(|| {
         Arc::new(ChunkPool::new())
     });
 
-    let rb_scene_tx = scene_tx.clone();
-    let rb_fonts = fonts.clone();
     let enable_multithreading = options.enable_multithreading;
     let backend_id = next_render_backend_id();
-    thread::Builder::new().name(rb_thread_name.clone()).spawn(move || {
-        if let Some(hooks) = render_backend_hooks {
-            hooks.init_thread();
+
+    // Build the params for the per-window ResourceCache. The cache itself is
+    // constructed on the render-backend thread (inside `register_window`) so
+    // that its allocations are attributed to that thread.
+    let resource_cache_init = ResourceCacheInit {
+        max_internal_texture_size,
+        image_tiling_threshold,
+        color_cache_formats,
+        swizzle_settings,
+        texture_cache_config,
+        picture_tile_size,
+        picture_texture_filter,
+        workers,
+        dedicated_glyph_raster_thread: options.dedicated_glyph_raster_thread.take(),
+        supports_r8_texture_upload,
+        fonts: fonts.clone(),
+        blob_image_handler: rb_blob_handler,
+        enable_multithreading,
+    };
+
+    // Either use the caller-supplied pool or construct a private one of
+    // size 1, which preserves the historical 1:1 backend-per-window model.
+    let owned_pool = match options.render_backend_pool.take() {
+        Some(pool) => pool,
+        None => {
+            let renderer_id_str = options.renderer_id.unwrap_or(0).to_string();
+            let pool_fonts = fonts.clone();
+            let pool_size_of = options.size_of_op;
+            let pool_enclosing_size_of = options.enclosing_size_of_op;
+            let support_lp = options.support_low_priority_transactions;
+            let pool_config = config;
+            let pool_namespace_alloc = namespace_alloc_by_client;
+            RenderBackendPool::new(1, move |_idx| PoolMemberSetup {
+                frame_builder_config: pool_config.clone(),
+                fonts: pool_fonts.clone(),
+                support_low_priority_transactions: support_lp,
+                size_of_op: pool_size_of,
+                enclosing_size_of_op: pool_enclosing_size_of,
+                scene_builder_hooks: scene_builder_hooks.take(),
+                render_backend_hooks: render_backend_hooks.take(),
+                namespace_alloc_by_client: pool_namespace_alloc,
+                thread_name_suffix: renderer_id_str.clone(),
+            })?
         }
-        register_thread_with_profiler(rb_thread_name.clone());
-        profiler::register_thread(&rb_thread_name);
+    };
 
-        let texture_cache = TextureCache::new(
-            max_internal_texture_size,
-            image_tiling_threshold,
-            color_cache_formats,
-            swizzle_settings,
-            &texture_cache_config,
-        );
+    let assigned = owned_pool.assign();
+    let api_tx = assigned.api_tx;
+    let scene_tx = assigned.scene_tx;
+    let low_priority_scene_tx = assigned.lp_scene_tx;
 
-        let picture_textures = PictureTextures::new(
-            picture_tile_size,
-            picture_texture_filter,
-        );
-
-        let glyph_cache = GlyphCache::new();
-
-        let mut resource_cache = ResourceCache::new(
-            texture_cache,
-            picture_textures,
-            glyph_rasterizer,
-            glyph_cache,
-            rb_fonts,
-            rb_blob_handler,
-        );
-
-        resource_cache.enable_multithreading(enable_multithreading);
-
-        let mut backend = RenderBackend::new(
-            api_rx,
-            rb_scene_tx,
-            make_size_of_ops(),
-            namespace_alloc_by_client,
-        );
-        backend.register_window(Box::new(WindowRegistration {
-            id: backend_id,
-            result_tx,
-            notifier: backend_notifier,
-            sampler,
-            resource_cache,
-            chunk_pool,
-            frame_config: config,
-            debug_flags,
-        }));
-        backend.run();
-        profiler::unregister_thread();
-    })?;
+    api_tx.send(ApiMsg::RegisterWindow(Box::new(WindowRegistration {
+        id: backend_id,
+        result_tx,
+        notifier: backend_notifier,
+        sampler,
+        resource_cache: resource_cache_init,
+        chunk_pool,
+        frame_config: config,
+        debug_flags,
+    }))).expect("send RegisterWindow failed");
 
     let debug_method = if !options.enable_gpu_markers {
         // The GPU markers are disabled.
