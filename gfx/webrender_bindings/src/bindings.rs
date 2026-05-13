@@ -27,7 +27,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{env, mem, ptr, slice};
 use thin_vec::ThinVec;
-use webrender::glyph_rasterizer::GlyphRasterThread;
+use webrender::glyph_rasterizer::{GlyphRasterThread, SharedFontResources};
 use webrender::ChunkPool;
 
 use euclid::SideOffsets2D;
@@ -36,14 +36,15 @@ use nsstring::nsAString;
 use program_cache::{remove_disk_cache, WrProgramCache};
 use tracy_rs::register_thread_with_profiler;
 use webrender::sw_compositor::SwCompositor;
+use webrender::render_backend_pool::{PoolMemberSetup, RenderBackendPool};
 use webrender::{
     api::units::*, api::*, create_webrender_instance, render_api::*, set_profiler_hooks, AsyncPropertySampler,
     AsyncScreenshotHandle, ClipRadius, Compositor, CompositorCapabilities, CompositorConfig, CompositorInputConfig,
-    CompositorSurfaceTransform, CompositorSurfaceUsage, Device, LayerCompositor, MappableCompositor, MappedTileInfo,
-    NativeSurfaceId, NativeSurfaceInfo, NativeTileId, PartialPresentCompositor, PendingShadersToPrecache, PipelineInfo,
-    ProfilerHooks, RecordedFrameHandle, RenderBackendHooks, Renderer, RendererStats, SWGLCompositeSurfaceInfo,
-    SceneBuilderHooks, ShaderPrecacheFlags, Shaders, SharedShaders, TextureCacheConfig, UploadMethod, WebRenderOptions,
-    WindowProperties, WindowVisibility, ONE_TIME_USAGE_HINT,
+    CompositorKind, CompositorSurfaceTransform, CompositorSurfaceUsage, Device, FrameBuilderConfig, LayerCompositor,
+    MappableCompositor, MappedTileInfo, NativeSurfaceId, NativeSurfaceInfo, NativeTileId, PartialPresentCompositor,
+    PendingShadersToPrecache, PipelineInfo, ProfilerHooks, RecordedFrameHandle, RenderBackendHooks, Renderer,
+    RendererStats, SWGLCompositeSurfaceInfo, SceneBuilderHooks, ShaderPrecacheFlags, Shaders, SharedShaders,
+    TextureCacheConfig, UploadMethod, WebRenderOptions, WindowProperties, WindowVisibility, ONE_TIME_USAGE_HINT,
 };
 use wr_malloc_size_of::MallocSizeOfOps;
 
@@ -1185,6 +1186,98 @@ pub unsafe extern "C" fn wr_chunk_pool_purge(pool: &WrChunkPool) {
     pool.0.purge_all_chunks();
 }
 
+/// Inner contents of [`WrRenderBackendPool`]. Hidden behind a tuple wrapper
+/// so cbindgen exports the outer type as a true opaque forward declaration.
+struct RenderBackendPoolHandle {
+    pool: Arc<RenderBackendPool>,
+    /// Font namespace shared by every window assigned to this pool. The
+    /// pool's scene builders use a single `SharedFontResources` keyed by
+    /// this namespace, so all windows must register their `ResourceCache`
+    /// with the same namespace, otherwise scene-builder font lookups would
+    /// miss.
+    font_namespace: IdNamespace,
+}
+
+pub struct WrRenderBackendPool(RenderBackendPoolHandle);
+
+/// Build a placeholder `FrameBuilderConfig` for use in `RenderBackendPool`
+/// construction. Real values arrive when the first window registers and
+/// `RenderBackend::register_window` propagates them to the scene builder via
+/// `SetFrameBuilderConfig`.
+fn placeholder_frame_builder_config() -> FrameBuilderConfig {
+    FrameBuilderConfig {
+        default_font_render_mode: FontRenderMode::Mono,
+        dual_source_blending_is_supported: false,
+        testing: false,
+        gpu_supports_fast_clears: false,
+        gpu_supports_advanced_blend: false,
+        advanced_blend_is_coherent: false,
+        gpu_supports_render_target_partial_update: false,
+        external_images_require_copy: false,
+        batch_lookback_count: 10,
+        background_color: None,
+        compositor_kind: CompositorKind::default(),
+        tile_size_override: None,
+        max_surface_override: None,
+        max_depth_ids: 1,
+        max_target_size: 2048,
+        force_invalidation: false,
+        is_software: false,
+        low_quality_pinch_zoom: false,
+        max_shared_surface_size: 4096,
+        enable_dithering: false,
+    }
+}
+
+/// Create a shared render-backend pool of `size` threads.
+///
+/// Returns null if `size` is zero or thread creation fails. The returned
+/// pointer is owned; release it with `wr_render_backend_pool_delete`.
+#[no_mangle]
+pub unsafe extern "C" fn wr_render_backend_pool_new(
+    size: usize,
+    size_of_op: VoidPtrToSizeFn,
+    enclosing_size_of_op: VoidPtrToSizeFn,
+) -> *mut WrRenderBackendPool {
+    if size == 0 {
+        return std::ptr::null_mut();
+    }
+    let font_namespace = next_namespace_id();
+    let fonts = SharedFontResources::new(font_namespace);
+    let config = placeholder_frame_builder_config();
+
+    let pool = match RenderBackendPool::new(size, move |idx| PoolMemberSetup {
+        frame_builder_config: config.clone(),
+        fonts: fonts.clone(),
+        support_low_priority_transactions: true,
+        size_of_op: Some(size_of_op),
+        enclosing_size_of_op: Some(enclosing_size_of_op),
+        // Per-window scene-builder hooks (APZ etc.) are not installed on a
+        // shared scene builder; a future step will multiplex them by
+        // document. Pool-of-N callers should treat this as a known
+        // limitation until the multiplexer lands.
+        scene_builder_hooks: None,
+        render_backend_hooks: Some(Box::new(RenderBackendCallbacks)),
+        namespace_alloc_by_client: true,
+        thread_name_suffix: idx.to_string(),
+    }) {
+        Ok(p) => p,
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    Box::into_raw(Box::new(WrRenderBackendPool(RenderBackendPoolHandle {
+        pool,
+        font_namespace,
+    })))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn wr_render_backend_pool_delete(pool: *mut WrRenderBackendPool) {
+    if !pool.is_null() {
+        mem::drop(Box::from_raw(pool));
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn wr_program_cache_new(
     prof_path: &nsAString,
@@ -1978,6 +2071,7 @@ pub extern "C" fn wr_window_new(
     thread_pool: *mut WrThreadPool,
     thread_pool_low_priority: *mut WrThreadPool,
     chunk_pool: &WrChunkPool,
+    render_backend_pool: Option<&WrRenderBackendPool>,
     glyph_raster_thread: Option<&WrGlyphRasterThread>,
     size_of_op: VoidPtrToSizeFn,
     enclosing_size_of_op: VoidPtrToSizeFn,
@@ -2143,13 +2237,19 @@ pub extern "C" fn wr_window_new(
         upload_method,
         scene_builder_hooks: Some(Box::new(APZCallbacks::new(window_id))),
         render_backend_hooks: Some(Box::new(RenderBackendCallbacks)),
+        render_backend_pool: render_backend_pool.map(|p| p.0.pool.clone()),
         sampler: Some(Box::new(SamplerCallback::new(window_id))),
         max_internal_texture_size: Some(8192), // We want to tile if larger than this
         clear_color: color,
         precache_flags,
         namespace_alloc_by_client: true,
-        // Font namespace must be allocated by the client
-        shared_font_namespace: Some(next_namespace_id()),
+        // When a shared backend pool is in use, every window assigned to it
+        // must share the pool's font namespace so the pool's scene builders
+        // can resolve font keys for any window.
+        shared_font_namespace: Some(match render_backend_pool {
+            Some(p) => p.0.font_namespace,
+            None => next_namespace_id(),
+        }),
         // SWGL doesn't support the GL_ALWAYS depth comparison function used by
         // `clear_caches_with_quads`, but scissored clears work well.
         clear_caches_with_quads: !software && !allow_scissored_cache_clears,

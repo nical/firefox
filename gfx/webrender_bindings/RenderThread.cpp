@@ -58,6 +58,8 @@ using namespace mozilla;
 static already_AddRefed<gl::GLContext> CreateGLContext(nsACString& aError);
 
 MOZ_DEFINE_MALLOC_SIZE_OF(WebRenderRendererMallocSizeOf)
+MOZ_DEFINE_MALLOC_SIZE_OF(WebRenderPoolMallocSizeOf)
+MOZ_DEFINE_MALLOC_ENCLOSING_SIZE_OF(WebRenderPoolMallocEnclosingSizeOf)
 
 namespace mozilla::wr {
 
@@ -84,6 +86,7 @@ RenderThread::RenderThread(RefPtr<nsIThread> aThread)
       mThreadPool(false),
       mThreadPoolLP(true),
       mChunkPool(wr_chunk_pool_new()),
+      mRenderBackendPool(nullptr),
       mGlyphRasterThread(USE_DEDICATED_GLYPH_RASTER_THREAD),
       mSingletonGLIsForHardwareWebRender(true),
       mBatteryInfo("RenderThread.mBatteryInfo"),
@@ -91,10 +94,28 @@ RenderThread::RenderThread(RefPtr<nsIThread> aThread)
       mRenderTextureMapLock("RenderThread.mRenderTextureMapLock"),
       mHasShutdown(false),
       mHandlingDeviceReset(false),
-      mHandlingWebRenderError(false) {}
+      mHandlingWebRenderError(false) {
+  // Pref of `0` (the default) keeps each window on its own private backend
+  // thread; anything `>= 1` creates a shared pool of N backend threads
+  // across the process.
+  uint32_t poolSize =
+      StaticPrefs::gfx_webrender_render_backend_thread_count_AtStartup();
+  if (poolSize >= 1) {
+    mRenderBackendPool = wr_render_backend_pool_new(
+        poolSize, &WebRenderPoolMallocSizeOf,
+        &WebRenderPoolMallocEnclosingSizeOf);
+    if (!mRenderBackendPool) {
+      gfxCriticalNote << "wr_render_backend_pool_new(" << poolSize
+                      << ") failed; falling back to private backend threads";
+    }
+  }
+}
 
 RenderThread::~RenderThread() {
   MOZ_ASSERT(mRenderTexturesDeferred.empty());
+  if (mRenderBackendPool) {
+    wr_render_backend_pool_delete(mRenderBackendPool);
+  }
   wr_chunk_pool_delete(mChunkPool);
 }
 
