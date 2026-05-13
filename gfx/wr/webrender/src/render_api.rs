@@ -1079,8 +1079,11 @@ pub enum ApiMsg {
     MemoryPressure,
     /// Collects a memory report.
     ReportMemory(Sender<Box<MemoryReport>>),
-    /// Change debugging options.
-    DebugCommand(DebugCommand),
+    /// Change debugging options, scoped to a specific window. The command
+    /// only affects documents that belong to the given `RenderBackendId`,
+    /// so callers can target one window in a shared backend pool without
+    /// disturbing others.
+    DebugCommand(RenderBackendId, DebugCommand),
     /// Message from the scene builder thread.
     SceneBuilderResult(SceneBuilderResult),
 }
@@ -1346,7 +1349,7 @@ impl RenderApi {
     pub fn set_debug_flags(&mut self, flags: DebugFlags) {
         self.resources.set_debug_flags(flags);
         let cmd = DebugCommand::SetFlags(flags);
-        self.api_sender.send(ApiMsg::DebugCommand(cmd)).unwrap();
+        self.api_sender.send(ApiMsg::DebugCommand(self.backend_id, cmd)).unwrap();
         self.scene_sender.send(SceneBuilderRequest ::SetFlags(flags)).unwrap();
         self.low_priority_scene_sender.send(SceneBuilderRequest ::SetFlags(flags)).unwrap();
     }
@@ -1497,7 +1500,7 @@ impl RenderApi {
 
     /// Save a capture of the current frame state for debugging.
     pub fn save_capture(&self, path: PathBuf, bits: CaptureBits) {
-        let msg = ApiMsg::DebugCommand(DebugCommand::SaveCapture(path, bits));
+        let msg = ApiMsg::DebugCommand(self.backend_id, DebugCommand::SaveCapture(path, bits));
         self.send_message(msg);
     }
 
@@ -1508,7 +1511,7 @@ impl RenderApi {
         self.flush_scene_builder();
 
         let (tx, rx) = unbounded_channel();
-        let msg = ApiMsg::DebugCommand(DebugCommand::LoadCapture(path, ids, tx));
+        let msg = ApiMsg::DebugCommand(self.backend_id, DebugCommand::LoadCapture(path, ids, tx));
         self.send_message(msg);
 
         let mut documents = Vec::new();
@@ -1520,27 +1523,27 @@ impl RenderApi {
 
     /// Start capturing a sequence of frames.
     pub fn start_capture_sequence(&self, path: PathBuf, bits: CaptureBits) {
-        let msg = ApiMsg::DebugCommand(DebugCommand::StartCaptureSequence(path, bits));
+        let msg = ApiMsg::DebugCommand(self.backend_id, DebugCommand::StartCaptureSequence(path, bits));
         self.send_message(msg);
     }
 
     /// Stop capturing sequences of frames.
     pub fn stop_capture_sequence(&self) {
-        let msg = ApiMsg::DebugCommand(DebugCommand::StopCaptureSequence);
+        let msg = ApiMsg::DebugCommand(self.backend_id, DebugCommand::StopCaptureSequence);
         self.send_message(msg);
     }
 
     /// Get the current debug flags
     pub fn get_debug_flags(&self) -> DebugFlags {
         let (tx, rx) = unbounded_channel();
-        let msg = ApiMsg::DebugCommand(DebugCommand::GetDebugFlags(tx));
+        let msg = ApiMsg::DebugCommand(self.backend_id, DebugCommand::GetDebugFlags(tx));
         self.send_message(msg);
         rx.recv().unwrap()
     }
 
     /// Update the state of builtin debugging facilities.
     pub fn send_debug_cmd(&self, cmd: DebugCommand) {
-        let msg = ApiMsg::DebugCommand(cmd);
+        let msg = ApiMsg::DebugCommand(self.backend_id, cmd);
         self.send_message(msg);
     }
 
