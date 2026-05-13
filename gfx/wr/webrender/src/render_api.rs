@@ -1070,7 +1070,11 @@ pub enum ApiMsg {
     /// before any `AddDocument` referencing the same `RenderBackendId`.
     RegisterWindow(Box<WindowRegistration>),
     /// Unregister a window from this render backend thread.
-    UnregisterWindow(RenderBackendId),
+    ///
+    /// If a channel is passed via the second argument, an empty message will
+    /// be sent on it after the window is unregistered. It can be used for
+    /// synchronzation.
+    UnregisterWindow(RenderBackendId, Option<Sender<()>>),
     /// Adds a new document with given initial size, owned by the given window.
     AddDocument(DocumentId, DeviceIntSize, RenderBackendId),
     /// A message targeted at a particular document.
@@ -1354,19 +1358,49 @@ impl RenderApi {
         self.low_priority_scene_sender.send(SceneBuilderRequest ::SetFlags(flags)).unwrap();
     }
 
-    /// Stop RenderBackend's task until shut down
+    /// Stop the backend from doing further work for this window.
+    ///
+    /// Synchronously unregisters the window from its render backend thread
+    /// and waits for the backend to acknowledge it has fully dropped the
+    /// window's state. This is a drain barrier: every earlier transaction
+    /// for this window has been processed (and its `result_tx` sends have
+    /// completed) before this returns, so it is safe for the caller to
+    /// drop the `Renderer` (and its `result_rx`) afterwards.
+    ///
+    /// If this is the last window on the thread, the thread exits;
+    /// otherwise it keeps serving the remaining windows.
     pub fn stop_render_backend(&self) {
-        self.low_priority_scene_sender.send(SceneBuilderRequest::StopRenderBackend).unwrap();
+        let (tx, rx) = single_msg_channel();
+        self.api_sender
+            .send(ApiMsg::UnregisterWindow(self.backend_id, Some(tx)))
+            .expect("api channel closed before stop_render_backend");
+        // Wait for the backend to confirm it has dropped the window. If the
+        // backend has already exited (e.g. via another path) the recv
+        // returns Err — there is nothing left to drain in that case.
+        let _ = rx.recv();
     }
 
     /// Shut the WebRender instance down.
+    ///
+    /// `synchronously` controls whether the call blocks for the backend
+    /// to fully drop the window's state. When `true` this provides the
+    /// same drain-before-destroy guarantee as `stop_render_backend`.
+    ///
+    /// Calling `stop_render_backend` followed by `shut_down(true)` is
+    /// safe — the second call's `UnregisterWindow` is a no-op on the
+    /// backend (the window is already gone) but the ack still fires.
     pub fn shut_down(&self, synchronously: bool) {
         if synchronously {
             let (tx, rx) = single_msg_channel();
-            self.low_priority_scene_sender.send(SceneBuilderRequest::ShutDown(Some(tx))).unwrap();
-            rx.recv().unwrap();
+            self.api_sender
+                .send(ApiMsg::UnregisterWindow(self.backend_id, Some(tx)))
+                .expect("api channel closed before shut_down");
+            let _ = rx.recv();
         } else {
-            self.low_priority_scene_sender.send(SceneBuilderRequest::ShutDown(None)).unwrap();
+            // Fire-and-forget: the caller opted out of the drain barrier.
+            let _ = self.api_sender.send(
+                ApiMsg::UnregisterWindow(self.backend_id, None),
+            );
         }
     }
 

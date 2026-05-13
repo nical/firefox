@@ -995,6 +995,17 @@ impl RenderBackend {
                 }
                 Err(..) => { RenderBackendStatus::ShutDown(None) }
             };
+
+            // When the last window is unregistered, the backend thread has
+            // nothing useful left to do; exit the loop so it can be torn
+            // down. With pref `gfx.webrender.render-backend-thread-count`
+            // = 0 the lone window unregisters on `shut_down` and the
+            // thread exits, matching the historical behavior. With a
+            // shared pool, the thread keeps running while at least one
+            // window is registered.
+            if matches!(status, RenderBackendStatus::Continue) && self.windows.is_empty() {
+                break;
+            }
         }
 
         if let RenderBackendStatus::StopRenderBackend = status {
@@ -1234,8 +1245,11 @@ impl RenderBackend {
             ApiMsg::RegisterWindow(reg) => {
                 self.register_window(reg);
             }
-            ApiMsg::UnregisterWindow(id) => {
+            ApiMsg::UnregisterWindow(id, ack) => {
                 self.unregister_window(id);
+                if let Some(ack) = ack {
+                    let _ = ack.send(());
+                }
             }
             ApiMsg::AddDocument(document_id, initial_size, backend_id) => {
                 debug_assert!(self.windows.contains_key(&backend_id),
