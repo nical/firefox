@@ -555,6 +555,7 @@ pub fn prepare_image_quads(
                 src_task_id,
                 src_is_opaque,
                 premultiplied,
+                color: image_data.color,
             };
 
             quad::prepare_repeatable_quad(
@@ -634,6 +635,7 @@ pub fn prepare_image_quads(
                         src_task_id,
                         src_is_opaque,
                         premultiplied,
+                        color: image_data.color,
                     };
 
                     quad::prepare_quad(

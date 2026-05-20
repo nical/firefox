@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use api::units::*;
+use api::{ColorF, units::*};
 
 use crate::pattern::{Pattern, PatternBuilder, PatternBuilderContext, PatternBuilderState};
 use crate::render_task_graph::RenderTaskId;
@@ -12,7 +12,7 @@ pub struct ImagePattern {
     pub src_task_id: RenderTaskId,
     pub src_is_opaque: bool,
     pub premultiplied: bool,
-    // pub color: ColorF, // TODO
+    pub color: ColorF,
 }
 
 impl PatternBuilder for ImagePattern {
@@ -30,6 +30,7 @@ impl PatternBuilder for ImagePattern {
         };
 
         Pattern::texture(self.src_task_id, self.src_is_opaque)
+            .with_base_color(self.color)
             .with_blend_mode(blend_mode)
     }
 }
