@@ -441,11 +441,6 @@ pub fn can_use_quad_shaders(
     let image_properties = resource_cache.get_image_properties(image_data.key);
     match &image_properties {
         Some(props) => {
-            // See the comment in ps_quad_textured about ignoring the base color
-            // due to a driver issue.
-            if image_data.color != ColorF::WHITE {
-                return false;
-            }
             // TextureRect external images need unnormalized UV coordinates which
             // the quad shaders do not currently handle, so fall back to the brush
             // path for those.
