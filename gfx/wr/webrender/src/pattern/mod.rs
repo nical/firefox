@@ -115,7 +115,7 @@ impl Pattern {
             kind: PatternKind::ColorOrTexture,
             shader_input: PatternShaderInput(
                 TEXTURED_SHADER_MODE_COLOR,
-                0,
+                0, // TODO
             ),
             texture_input: PatternTextureInput::default(),
             base_color: color,
@@ -173,8 +173,25 @@ impl PatternBuilder for ColorF {
         _sub_rect: Option<DeviceRect>,
         _offset: LayoutVector2D,
         _ctx: &PatternBuilderContext,
-        _state: &mut PatternBuilderState,
+        state: &mut PatternBuilderState,
     ) -> Pattern {
-        Pattern::color(*self)
+        let premult = self.premultiplied();
+        let mut writer = state.frame_gpu_data.f32.write_blocks(1);
+        writer.push_one([
+            premult.r,
+            premult.g,
+            premult.b,
+            premult.a,
+        ]);
+        let color_address = writer.finish();
+
+        Pattern {
+            kind: PatternKind::ColorOrTexture,
+            shader_input: PatternShaderInput(TEXTURED_SHADER_MODE_COLOR, color_address.as_int()),
+            texture_input: PatternTextureInput::default(),
+            base_color: *self,
+            is_opaque: self.a >= 1.0,
+            blend_mode: BlendMode::PremultipliedAlpha,
+        }
     }
 }

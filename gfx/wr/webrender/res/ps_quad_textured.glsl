@@ -14,6 +14,8 @@
 #define MAP_TO_PRIMITIVE 0
 #define MAP_TO_SEGMENT 1
 
+flat varying mediump vec4 v_color;
+
 #ifdef WR_VERTEX_SHADER
 
 void pattern_vertex(PrimitiveInfo info) {
@@ -29,8 +31,10 @@ void pattern_vertex(PrimitiveInfo info) {
 
         vec2 f = (info.local_pos - pattern_rect.p0) / rect_size(pattern_rect);
         vs_init_sample_color0(f, info.segment.uv_rect);
+        v_color = vec4(1.0);
+    } else {
+        v_color = fetch_from_gpu_buffer_1f(info.pattern_input.y);
     }
-
     v_flags_mode = info.pattern_input.x;
 }
 
@@ -39,6 +43,8 @@ void pattern_vertex(PrimitiveInfo info) {
 #ifdef WR_FRAGMENT_SHADER
 
 vec4 pattern_fragment(vec4 color) {
+    color *= v_color;
+
     if (v_flags_mode == SHADER_MODE_TEXTURE) {
         vec4 texel = fs_sample_color0();
         color *= texel;

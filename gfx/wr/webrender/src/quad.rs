@@ -1963,7 +1963,6 @@ fn create_quad_primitive(
         clip: prim_clip_rect,
         input_task: pattern.texture_input.task_id,
         pattern_scale_offset: pattern_transform,
-        color: pattern.base_color.premultiplied(),
     }
 }
 
@@ -2060,14 +2059,13 @@ fn write_prim_blocks_impl(
     segments: &[QuadSegment],
     pattern_scale_offset: ScaleOffset,
 ) -> GpuBufferAddress {
-    let mut writer = builder.write_blocks(5 + segments.len() * 2);
+    let mut writer = builder.write_blocks(4 + segments.len() * 2);
 
     writer.push(&QuadPrimitive {
         bounds: prim_rect,
         clip: clip_rect,
         input_task: pattern_texture_input,
         pattern_scale_offset,
-        color: pattern_base_color.premultiplied(),
     });
 
     for segment in segments {

@@ -650,18 +650,15 @@ pub struct QuadPrimitive {
     // It would be better to send the gpu buffer address to the shader.
     pub input_task: RenderTaskId,
     pub pattern_scale_offset: ScaleOffset,
-    /// Base color of the pattern.
-    pub color: PremultipliedColorF,
 }
 
 impl GpuBufferDataF for QuadPrimitive {
-    const NUM_BLOCKS: usize = 5;
+    const NUM_BLOCKS: usize = 4;
     fn write(&self, writer: &mut GpuBufferWriterF) {
         writer.push_one(self.bounds);
         writer.push_one(self.clip);
         writer.push_render_task(self.input_task);
         writer.push_one(self.pattern_scale_offset);
-        writer.push_one(self.color);
     }
 }
 

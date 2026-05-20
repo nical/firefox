@@ -122,11 +122,11 @@ void swgl_drawSpanRGBA8() {
         return;
     }
 
-    if (v_color != vec4(1.0)) {
-        swgl_commitTextureRepeatColorRGBA8(sColor0, v_uv, v_repetitions, v_uv_bounds, v_uv_sample_bounds, v_color);
-    } else {
+    //if (v_color != vec4(1.0)) {
+    //    swgl_commitTextureRepeatColorRGBA8(sColor0, v_uv, v_repetitions, v_uv_bounds, v_uv_sample_bounds, v_color);
+    //} else {
         swgl_commitTextureRepeatRGBA8(sColor0, v_uv, v_repetitions, v_uv_bounds, v_uv_sample_bounds);
-    }
+    //}
 }
 #endif
 
