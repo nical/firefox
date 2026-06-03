@@ -11,7 +11,7 @@ use crate::ellipse::Ellipse;
 use crate::scene_building::SceneBuilder;
 use crate::spatial_tree::SpatialNodeIndex;
 use crate::gpu_types::{BorderInstance, BorderSegment, BrushFlags};
-use crate::prim_store::{BorderSegmentInfo, BrushSegment, NinePatchDescriptor};
+use crate::prim_store::{BrushSegment, NinePatchDescriptor};
 use crate::prim_store::borders::NormalBorderPrim;
 use crate::util::{lerp, RectHelpers};
 use crate::internal_types::LayoutPrimitiveInfo;
@@ -621,20 +621,35 @@ fn get_edge_info(
     }
 }
 
+#[derive(Clone)]
+pub struct NormalBorderSegment {
+    /// The rect the cached segment texture is drawn into at its natural size.
+    /// For corners this is the full corner image rect, which may extend past
+    /// the visible area when an adjacent corner overlaps it; for edges it is
+    /// the edge rect.
+    pub local_rect: LayoutRect,
+    /// Sub-rect of `local_rect` the drawn texture is clipped to. `Some` for
+    /// corners (the visible, non-overlapping part); `None` for edges, which
+    /// need no per-segment clip.
+    pub clip_rect: Option<LayoutRect>,
+    pub repeat_x: RepeatMode,
+    pub repeat_y: RepeatMode,
+    pub edge_flags: EdgeMask,
+    pub task_size: LayoutSize,
+    pub cache_key: BorderSegmentCacheKey,
+}
+
 /// Create the set of border segments and render task
 /// cache keys for a given CSS border.
 pub fn create_border_segments(
-    size: LayoutSize,
+    rect: LayoutRect,
     border: &ApiNormalBorder,
     widths: &LayoutSideOffsets,
-    border_segments: &mut Vec<BorderSegmentInfo>,
-    brush_segments: &mut Vec<BrushSegment>,
+    segment_cb: &mut dyn FnMut(&NormalBorderSegment),
 ) {
-    let rect = LayoutRect::from_size(size);
-
     let overlap = LayoutSize::new(
-        (widths.left + widths.right - size.width).max(0.0),
-        (widths.top + widths.bottom - size.height).max(0.0),
+        (widths.left + widths.right - rect.width()).max(0.0),
+        (widths.top + widths.bottom - rect.height()).max(0.0),
     );
     let non_overlapping_widths = LayoutSideOffsets::new(
         widths.top - overlap.height / 2.0,
@@ -694,9 +709,8 @@ pub fn create_border_segments(
         non_overlapping_widths.left,
         BorderSegment::Left,
         EdgeMask::LEFT | EdgeMask::RIGHT,
-        brush_segments,
-        border_segments,
         border.do_aa,
+        segment_cb,
     );
     add_edge_segment(
         LayoutRect::from_floats(
@@ -710,9 +724,8 @@ pub fn create_border_segments(
         non_overlapping_widths.top,
         BorderSegment::Top,
         EdgeMask::TOP | EdgeMask::BOTTOM,
-        brush_segments,
-        border_segments,
         border.do_aa,
+        segment_cb,
     );
     add_edge_segment(
         LayoutRect::from_floats(
@@ -726,9 +739,8 @@ pub fn create_border_segments(
         non_overlapping_widths.right,
         BorderSegment::Right,
         EdgeMask::RIGHT | EdgeMask::LEFT,
-        brush_segments,
-        border_segments,
         border.do_aa,
+        segment_cb,
     );
     add_edge_segment(
         LayoutRect::from_floats(
@@ -742,9 +754,8 @@ pub fn create_border_segments(
         non_overlapping_widths.bottom,
         BorderSegment::Bottom,
         EdgeMask::BOTTOM | EdgeMask::TOP,
-        brush_segments,
-        border_segments,
         border.do_aa,
+        segment_cb,
     );
 
     add_corner_segment(
@@ -770,9 +781,8 @@ pub fn create_border_segments(
         border.radius.top_right,
         rect.bottom_left(),
         border.radius.bottom_left,
-        brush_segments,
-        border_segments,
         border.do_aa,
+        segment_cb,
     );
     add_corner_segment(
         LayoutRect::from_floats(
@@ -797,9 +807,8 @@ pub fn create_border_segments(
         border.radius.top_left,
         rect.max,
         border.radius.bottom_right,
-        brush_segments,
-        border_segments,
         border.do_aa,
+        segment_cb,
     );
     add_corner_segment(
         LayoutRect::from_floats(
@@ -824,9 +833,8 @@ pub fn create_border_segments(
         border.radius.bottom_left,
         rect.top_right(),
         border.radius.top_right,
-        brush_segments,
-        border_segments,
         border.do_aa,
+        segment_cb,
     );
     add_corner_segment(
         LayoutRect::from_floats(
@@ -851,26 +859,9 @@ pub fn create_border_segments(
         border.radius.bottom_right,
         rect.min,
         border.radius.top_left,
-        brush_segments,
-        border_segments,
         border.do_aa,
+        segment_cb,
     );
-}
-
-/// Computes the maximum scale that we allow for this set of border parameters.
-/// capping the scale will result in rendering very large corners at a lower
-/// resolution and stretching them, so they will have the right shape, but
-/// blurrier.
-pub fn get_max_scale_for_border(
-    border_segments: &[BorderSegmentInfo],
-) -> LayoutToDeviceScale {
-    let mut r = 1.0;
-    for segment in border_segments {
-        let size = segment.local_task_size;
-        r = size.width.max(size.height.max(r));
-    }
-
-    LayoutToDeviceScale::new(MAX_BORDER_RESOLUTION as f32 / r)
 }
 
 fn add_segment(
@@ -1026,9 +1017,8 @@ fn add_corner_segment(
     h_adjacent_corner_radius: LayoutSize,
     v_adjacent_corner_outer: LayoutPoint,
     v_adjacent_corner_radius: LayoutSize,
-    brush_segments: &mut Vec<BrushSegment>,
-    border_segments: &mut Vec<BorderSegmentInfo>,
     do_aa: bool,
+    segment_cb: &mut dyn FnMut(&NormalBorderSegment),
 ) {
     if side0.color.a <= 0.0 && side1.color.a <= 0.0 {
         return;
@@ -1048,20 +1038,6 @@ fn add_corner_segment(
             return;
         }
     };
-
-    let texture_rect = segment_rect
-        .translate(-image_rect.min.to_vector())
-        .scale(1.0 / image_rect.width(), 1.0 / image_rect.height());
-
-    brush_segments.push(
-        BrushSegment::new(
-            segment_rect,
-            /* may_need_clip_mask = */ true,
-            edge_flags,
-            [texture_rect.min.x, texture_rect.min.y, texture_rect.max.x, texture_rect.max.y],
-            BrushFlags::SEGMENT_RELATIVE | BrushFlags::SEGMENT_TEXEL_RECT,
-        )
-    );
 
     // If the radii of the adjacent corners do not overlap with this segment,
     // then set the outer position to this segment's corner and the radii to zero.
@@ -1131,8 +1107,13 @@ fn add_corner_segment(
         _ => unreachable!()
     };
 
-    border_segments.push(BorderSegmentInfo {
-        local_task_size: image_rect.size(),
+    segment_cb(&NormalBorderSegment {
+        local_rect: image_rect,
+        clip_rect: Some(segment_rect),
+        repeat_x: RepeatMode::Stretch,
+        repeat_y: RepeatMode::Stretch,
+        edge_flags,
+        task_size: image_rect.size(),
         cache_key: BorderSegmentCacheKey {
             do_aa,
             side0: side0.into(),
@@ -1157,9 +1138,8 @@ fn add_edge_segment(
     width: f32,
     segment: BorderSegment,
     edge_flags: EdgeMask,
-    brush_segments: &mut Vec<BrushSegment>,
-    border_segments: &mut Vec<BorderSegmentInfo>,
     do_aa: bool,
+    segment_cb: &mut dyn FnMut(&NormalBorderSegment),
 ) {
     if side.color.a <= 0.0 {
         return;
@@ -1169,12 +1149,12 @@ fn add_edge_segment(
         return;
     }
 
-    let (size, brush_flags) = match segment {
+    let (size, repeat_x, repeat_y) = match segment {
         BorderSegment::Left | BorderSegment::Right => {
-            (LayoutSize::new(width, edge_info.stretch_size), BrushFlags::SEGMENT_REPEAT_Y)
+            (LayoutSize::new(width, edge_info.stretch_size), RepeatMode::Stretch, RepeatMode::Repeat)
         }
         BorderSegment::Top | BorderSegment::Bottom => {
-            (LayoutSize::new(edge_info.stretch_size, width), BrushFlags::SEGMENT_REPEAT_X)
+            (LayoutSize::new(edge_info.stretch_size, width), RepeatMode::Repeat, RepeatMode::Stretch)
         }
         _ => {
             unreachable!();
@@ -1185,18 +1165,13 @@ fn add_edge_segment(
         return;
     }
 
-    brush_segments.push(
-        BrushSegment::new(
-            image_rect,
-            /* may_need_clip_mask = */ true,
-            edge_flags,
-            [0.0, 0.0, size.width, size.height],
-            BrushFlags::SEGMENT_RELATIVE | brush_flags,
-        )
-    );
-
-    border_segments.push(BorderSegmentInfo {
-        local_task_size: size,
+    segment_cb(&NormalBorderSegment {
+        local_rect: image_rect,
+        clip_rect: None,
+        repeat_x,
+        repeat_y,
+        edge_flags,
+        task_size: size, // TODO: double-check
         cache_key: BorderSegmentCacheKey {
             do_aa,
             side0: side.into(),
@@ -1478,7 +1453,7 @@ impl NinePatchDescriptorExt for NinePatchDescriptor {
     }
 }
 
-// Computes the stretch-size of a repeated pattern along a border segment,
+// Computes the stretch-size of a repeated pattern along a border sgment,
 // given the segment size and the size of the source pattern.
 pub fn compute_border_repetition(
     segment_size: LayoutSize,
