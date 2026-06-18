@@ -1256,6 +1256,12 @@ fn prepare_prim_for_render(
             let pic_scratch_handle = prim_info.kind_scratch.unwrap_picture();
             let pic = &mut store.pictures[pic_index.0];
 
+            // Whether the picture's clip mask (if any) is fully handled by
+            // drawing the clips onto the picture's source task below. When true,
+            // the compositing quad must not re-apply the clip. Target masks
+            // (applied when compositing) are not handled by the quad path yet.
+            let mut all_masks_in_source = true;
+
             if prim_info.clip_chain.needs_mask {
                 // TODO(gw): Much of the code in this branch could be moved in to a common
                 //           function as we move more primitives to the new clip-mask paths.
@@ -1293,6 +1299,8 @@ fn prepare_prim_for_render(
                         target_masks.push(i);
                     }
                 }
+
+                all_masks_in_source = target_masks.is_empty();
 
                 let pic_surface_index = pic.raster_config.as_ref().unwrap().surface_index;
                 let prim_local_rect: LayoutRect = frame_state
@@ -1447,11 +1455,12 @@ fn prepare_prim_for_render(
                     surface.surface_spatial_node_index != surface.raster_spatial_node_index
                 };
 
-                // Masked raster roots additionally need the masked compositing
-                // path (Indirect / Tiled) to account for the raster root, which
-                // is not handled on the quad path yet, so they stay on the
-                // legacy brush path for now.
-                let supported = !(is_raster_root && prim_info.clip_chain.needs_mask);
+                // When a picture has a clip mask, it is handled by drawing the
+                // clips onto the picture's source task above. If any clip had to
+                // go to a target mask (applied while compositing) we leave the
+                // picture on the legacy brush path, since the quad compositing
+                // path doesn't apply target masks yet.
+                let supported = all_masks_in_source;
 
                 // Composite modes that have been migrated to the quad path emit
                 // a PrimitiveCommand::Quad here and return early so they are not
@@ -1462,7 +1471,8 @@ fn prepare_prim_for_render(
                 let use_quads = if supported && matches!(pic.context_3d, Picture3DContext::Out) {
                     match raster_config.composite_mode {
                         PictureCompositeMode::Filter(Filter::Blur { .. })
-                        | PictureCompositeMode::SVGFEGraph(..) => true,
+                        | PictureCompositeMode::SVGFEGraph(..)
+                        | PictureCompositeMode::Blit(..) => true,
                         PictureCompositeMode::Filter(Filter::Opacity(_, amount)) => {
                             opacity = amount;
                             true
@@ -1521,6 +1531,12 @@ fn prepare_prim_for_render(
                             (prim_info.clip_chain.local_clip_rect, quad_transform)
                         };
 
+                        // The clip mask (if any) was drawn onto the picture's
+                        // source task above, so the compositing quad must not
+                        // re-apply it (which would mask twice).
+                        let mut composite_clip_chain = prim_info.clip_chain;
+                        composite_clip_chain.needs_mask = false;
+
                         quad::prepare_quad(
                             &pattern,
                             &pic_local_rect,
@@ -1529,7 +1545,7 @@ fn prepare_prim_for_render(
                             EdgeMask::all(),
                             prim_instance_index,
                             &None,
-                            &prim_info.clip_chain,
+                            &composite_clip_chain,
                             transform,
                             frame_context,
                             pic_context,
