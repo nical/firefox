@@ -1440,11 +1440,29 @@ fn prepare_prim_for_render(
             );
 
             if let Some(raster_config) = &pic.raster_config {
-                let use_quads = matches!(
-                    raster_config.composite_mode,
-                    PictureCompositeMode::Filter(Filter::Blur { .. })
-                        | PictureCompositeMode::SVGFEGraph(..)
-                );
+                // Pictures that establish a raster root (rasterized in a
+                // different spatial node than they are composited in) need a
+                // dedicated compositing transform on the quad path; they are
+                // left on the legacy brush path until that is implemented.
+                let is_raster_root = {
+                    let surface = &frame_state.surfaces[raster_config.surface_index.0];
+                    surface.surface_spatial_node_index != surface.raster_spatial_node_index
+                };
+
+                let mut opacity = 1.0;
+                let use_quads = if !is_raster_root && matches!(pic.context_3d, Picture3DContext::Out) {
+                    match raster_config.composite_mode {
+                        PictureCompositeMode::Filter(Filter::Blur { .. })
+                        | PictureCompositeMode::SVGFEGraph(..) => true,
+                        PictureCompositeMode::Filter(Filter::Opacity(_, amount)) => {
+                            opacity = amount;
+                            true
+                        }
+                        _ => false,
+                    }
+                } else {
+                   false
+                };
 
                 if use_quads {
                     // Detached snapshot pictures are not composited.
@@ -1454,10 +1472,6 @@ fn prepare_prim_for_render(
                             .primary_render_task_id
                             .expect("bug: no render task for composited picture");
 
-                        // The composited picture's local rect is derived from
-                        // its raster surface (inflated for blur, the filter
-                        // coverage for SVG filters), not the un-inflated
-                        // content rect carried on the draw.
                         let surface = &frame_state.surfaces[raster_config.surface_index.0];
                         let pic_local_rect = raster_config.composite_mode.get_rect(surface, None);
 
@@ -1466,7 +1480,7 @@ fn prepare_prim_for_render(
                             src_is_opaque: false,
                             premultiplied: true,
                             sampler_kind: ImageBufferKind::Texture2D,
-                            color: ColorF::WHITE,
+                            color: ColorF::new(1.0, 1.0, 1.0, opacity),
                         };
 
                         quad::prepare_quad(
