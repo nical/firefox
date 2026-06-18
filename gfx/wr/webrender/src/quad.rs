@@ -77,6 +77,27 @@ impl QuadTransformState {
         }
     }
 
+    /// Build a transform state from an explicit local-to-raster scale-offset
+    /// rather than deriving it from the spatial tree. Used to composite raster
+    /// root pictures, whose baked raster transform must not be applied a second
+    /// time at composite time. `local_to_raster` must capture only scale and
+    /// translation (any rotation is already baked into the rasterized content).
+    pub fn from_scale_offset(
+        local_to_raster: ScaleOffset,
+        prim_node: SpatialNodeIndex,
+        raster_node: SpatialNodeIndex,
+        scale: DevicePixelScale,
+    ) -> QuadTransformState {
+        QuadTransformState {
+            map_prim_to_raster: CoordinateSpaceMapping::ScaleOffset(local_to_raster),
+            as_scale_offset: Some(local_to_raster.then_scale(scale.0)),
+            is_2d_axis_aligned: true,
+            prim_spatial_node: prim_node,
+            raster_spatial_node: raster_node,
+            device_pixel_scale: scale,
+        }
+    }
+
     pub fn set(
         &mut self,
         src_node: SpatialNodeIndex,
@@ -134,6 +155,44 @@ impl QuadTransformState {
     pub fn device_pixel_scale(&self) -> DevicePixelScale {
         self.device_pixel_scale
     }
+}
+
+/// Compute the compositing transform for a raster root picture, i.e. one that
+/// was rasterized in a different spatial node than it is composited in.
+///
+/// Returns the local-to-raster scale-offset (capturing only scale and
+/// translation, since any rotation between the surface and its raster root is
+/// already baked into the rasterized content) together with the clip rect
+/// re-expressed in the picture's local space, so that applying the returned
+/// transform to it reproduces the full clip mapping. Mirrors the legacy brush
+/// path in batch.rs.
+pub fn picture_raster_root_transform(
+    prim_rect: &LayoutRect,
+    local_clip_rect: &LayoutRect,
+    root_spatial_node_index: SpatialNodeIndex,
+    surface_spatial_node_index: SpatialNodeIndex,
+    spatial_tree: &SpatialTree,
+) -> (ScaleOffset, LayoutRect) {
+    let map_local_to_raster = SpaceMapper::new_with_target(
+        root_spatial_node_index,
+        surface_spatial_node_index,
+        LayoutRect::max_rect(),
+        spatial_tree,
+    );
+
+    let raster_rect = map_local_to_raster.map(prim_rect).unwrap();
+
+    let sx = (raster_rect.max.x - raster_rect.min.x) / (prim_rect.max.x - prim_rect.min.x);
+    let sy = (raster_rect.max.y - raster_rect.min.y) / (prim_rect.max.y - prim_rect.min.y);
+    let tx = raster_rect.min.x - sx * prim_rect.min.x;
+    let ty = raster_rect.min.y - sy * prim_rect.min.y;
+
+    let transform = ScaleOffset::new(sx, sy, tx, ty);
+
+    let raster_clip_rect = map_local_to_raster.map(local_clip_rect).unwrap();
+    let adjusted_clip_rect = transform.unmap_rect(&raster_clip_rect);
+
+    (transform, adjusted_clip_rect)
 }
 
 /// Describes how clipping affects the rendering of a quad primitive.

@@ -1440,17 +1440,26 @@ fn prepare_prim_for_render(
             );
 
             if let Some(raster_config) = &pic.raster_config {
-                // Pictures that establish a raster root (rasterized in a
-                // different spatial node than they are composited in) need a
-                // dedicated compositing transform on the quad path; they are
-                // left on the legacy brush path until that is implemented.
+                // A raster root is a picture rasterized in a different spatial
+                // node than it is composited in.
                 let is_raster_root = {
                     let surface = &frame_state.surfaces[raster_config.surface_index.0];
                     surface.surface_spatial_node_index != surface.raster_spatial_node_index
                 };
 
+                // Masked raster roots additionally need the masked compositing
+                // path (Indirect / Tiled) to account for the raster root, which
+                // is not handled on the quad path yet, so they stay on the
+                // legacy brush path for now.
+                let supported = !(is_raster_root && prim_info.clip_chain.needs_mask);
+
+                // Composite modes that have been migrated to the quad path emit
+                // a PrimitiveCommand::Quad here and return early so they are not
+                // also added to the legacy brush batches in batch.rs. Pictures
+                // that are part of a 3D context are composited through the plane
+                // splitter below, so they are left on the legacy path here.
                 let mut opacity = 1.0;
-                let use_quads = if !is_raster_root && matches!(pic.context_3d, Picture3DContext::Out) {
+                let use_quads = if supported && matches!(pic.context_3d, Picture3DContext::Out) {
                     match raster_config.composite_mode {
                         PictureCompositeMode::Filter(Filter::Blur { .. })
                         | PictureCompositeMode::SVGFEGraph(..) => true,
@@ -1461,7 +1470,7 @@ fn prepare_prim_for_render(
                         _ => false,
                     }
                 } else {
-                   false
+                    false
                 };
 
                 if use_quads {
@@ -1473,7 +1482,12 @@ fn prepare_prim_for_render(
                             .expect("bug: no render task for composited picture");
 
                         let surface = &frame_state.surfaces[raster_config.surface_index.0];
+                        // The composited picture's local rect is derived from
+                        // its raster surface (inflated for blur, the filter
+                        // coverage for SVG filters), not the un-inflated content
+                        // rect carried on the draw.
                         let pic_local_rect = raster_config.composite_mode.get_rect(surface, None);
+                        let surface_spatial_node_index = surface.surface_spatial_node_index;
 
                         let pattern = ImagePattern {
                             src_task_id: pic_task_id,
@@ -1483,16 +1497,40 @@ fn prepare_prim_for_render(
                             color: ColorF::new(1.0, 1.0, 1.0, opacity),
                         };
 
+                        // For a raster root, the baked raster transform must not
+                        // be applied again at composite time, so use a dedicated
+                        // local-to-raster scale-offset transform (and the clip
+                        // rect it implies) rather than the cluster's transform.
+                        let mut raster_root_transform;
+                        let (local_clip_rect, transform) = if is_raster_root {
+                            let (local_to_raster, clip_rect) = quad::picture_raster_root_transform(
+                                &pic_local_rect,
+                                &prim_info.clip_chain.local_clip_rect,
+                                pic_context.raster_spatial_node_index,
+                                surface_spatial_node_index,
+                                frame_context.spatial_tree,
+                            );
+                            raster_root_transform = QuadTransformState::from_scale_offset(
+                                local_to_raster,
+                                prim_spatial_node_index,
+                                pic_context.raster_spatial_node_index,
+                                quad_transform.device_pixel_scale(),
+                            );
+                            (clip_rect, &mut raster_root_transform)
+                        } else {
+                            (prim_info.clip_chain.local_clip_rect, quad_transform)
+                        };
+
                         quad::prepare_quad(
                             &pattern,
                             &pic_local_rect,
-                            &prim_info.clip_chain.local_clip_rect,
+                            &local_clip_rect,
                             EdgeMask::empty(),
                             EdgeMask::all(),
                             prim_instance_index,
                             &None,
                             &prim_info.clip_chain,
-                            quad_transform,
+                            transform,
                             frame_context,
                             pic_context,
                             targets,
