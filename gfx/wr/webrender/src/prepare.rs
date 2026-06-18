@@ -26,6 +26,7 @@ use crate::command_buffer::{CommandBufferIndex, PrimitiveCommand};
 use crate::border;
 use crate::clip::{ClipStore, ClipNodeRange};
 use crate::pattern::image::ImagePattern;
+use crate::pattern::filter::FilterPattern;
 use crate::pattern::yuv::YuvPattern;
 use crate::pattern::backdrop::BackdropPattern;
 use crate::picture::calculate_screen_uv;
@@ -209,6 +210,24 @@ fn yuv_planes_sampler_kind(
         }
     }
     ImageBufferKind::Texture2D
+}
+
+/// Maps a CSS/SVG color filter to the (filter_mode, fixed-point amount) pair
+/// consumed by the ps_quad_blend shader. Returns None for filters that need
+/// extra GPU data (color matrix, flood, component transfer), which are not
+/// handled by the quad path yet. Must stay in sync with brush_blend.glsl.
+fn scalar_filter_quad_param(filter: &Filter) -> Option<(i32, i32)> {
+    let amount = match filter {
+        Filter::Contrast(amount)
+        | Filter::Grayscale(amount)
+        | Filter::Invert(amount)
+        | Filter::Saturate(amount)
+        | Filter::Sepia(amount)
+        | Filter::Brightness(amount) => amount * 65536.0,
+        Filter::HueRotate(angle) => 0.01745329251 * angle * 65536.0,
+        _ => return None,
+    };
+    Some((filter.as_int(), amount as i32))
 }
 
 fn prepare_prim_for_render(
@@ -1468,6 +1487,9 @@ fn prepare_prim_for_render(
                 // that are part of a 3D context are composited through the plane
                 // splitter below, so they are left on the legacy path here.
                 let mut opacity = 1.0;
+                // Set for CSS/SVG filters that map to the ps_quad_blend shader:
+                // (filter_mode, amount-or-gpu-address).
+                let mut filter = None;
                 let use_quads = if supported && matches!(pic.context_3d, Picture3DContext::Out) {
                     match raster_config.composite_mode {
                         PictureCompositeMode::Filter(Filter::Blur { .. })
@@ -1476,6 +1498,15 @@ fn prepare_prim_for_render(
                         PictureCompositeMode::Filter(Filter::Opacity(_, amount)) => {
                             opacity = amount;
                             true
+                        }
+                        PictureCompositeMode::Filter(ref f) => {
+                            match scalar_filter_quad_param(f) {
+                                Some(params) => {
+                                    filter = Some(params);
+                                    true
+                                }
+                                None => false,
+                            }
                         }
                         _ => false,
                     }
@@ -1499,12 +1530,27 @@ fn prepare_prim_for_render(
                         let pic_local_rect = raster_config.composite_mode.get_rect(surface, None);
                         let surface_spatial_node_index = surface.surface_spatial_node_index;
 
-                        let pattern = ImagePattern {
-                            src_task_id: pic_task_id,
-                            src_is_opaque: false,
-                            premultiplied: true,
-                            sampler_kind: ImageBufferKind::Texture2D,
-                            color: ColorF::new(1.0, 1.0, 1.0, opacity),
+                        let image_pattern;
+                        let filter_pattern;
+                        let pattern: &dyn PatternBuilder = match filter {
+                            Some((filter_mode, param)) => {
+                                filter_pattern = FilterPattern {
+                                    src_task_id: pic_task_id,
+                                    filter_mode,
+                                    param,
+                                };
+                                &filter_pattern
+                            }
+                            None => {
+                                image_pattern = ImagePattern {
+                                    src_task_id: pic_task_id,
+                                    src_is_opaque: false,
+                                    premultiplied: true,
+                                    sampler_kind: ImageBufferKind::Texture2D,
+                                    color: ColorF::new(1.0, 1.0, 1.0, opacity),
+                                };
+                                &image_pattern
+                            }
                         };
 
                         // For a raster root, the baked raster transform must not
@@ -1538,7 +1584,7 @@ fn prepare_prim_for_render(
                         composite_clip_chain.needs_mask = false;
 
                         quad::prepare_quad(
-                            &pattern,
+                            pattern,
                             &pic_local_rect,
                             &local_clip_rect,
                             EdgeMask::empty(),
