@@ -1439,6 +1439,59 @@ fn prepare_prim_for_render(
                 &mut scratch.frame.pictures[pic_scratch_handle],
             );
 
+            if let Some(raster_config) = &pic.raster_config {
+                let use_quads = matches!(
+                    raster_config.composite_mode,
+                    PictureCompositeMode::Filter(Filter::Blur { .. })
+                        | PictureCompositeMode::SVGFEGraph(..)
+                );
+
+                if use_quads {
+                    // Detached snapshot pictures are not composited.
+                    let detached = pic.snapshot.map_or(false, |s| s.detached);
+                    if !detached {
+                        let pic_task_id = scratch.frame.pictures[pic_scratch_handle]
+                            .primary_render_task_id
+                            .expect("bug: no render task for composited picture");
+
+                        // The composited picture's local rect is derived from
+                        // its raster surface (inflated for blur, the filter
+                        // coverage for SVG filters), not the un-inflated
+                        // content rect carried on the draw.
+                        let surface = &frame_state.surfaces[raster_config.surface_index.0];
+                        let pic_local_rect = raster_config.composite_mode.get_rect(surface, None);
+
+                        let pattern = ImagePattern {
+                            src_task_id: pic_task_id,
+                            src_is_opaque: false,
+                            premultiplied: true,
+                            sampler_kind: ImageBufferKind::Texture2D,
+                            color: ColorF::WHITE,
+                        };
+
+                        quad::prepare_quad(
+                            &pattern,
+                            &pic_local_rect,
+                            &prim_info.clip_chain.local_clip_rect,
+                            EdgeMask::empty(),
+                            EdgeMask::all(),
+                            prim_instance_index,
+                            &None,
+                            &prim_info.clip_chain,
+                            quad_transform,
+                            frame_context,
+                            pic_context,
+                            targets,
+                            &data_stores.clip,
+                            frame_state,
+                            scratch,
+                        );
+                    }
+
+                    return;
+                }
+            }
+
             if let Picture3DContext::In { root_data: None, plane_splitter_index, ancestor_index, .. } = pic.context_3d {
                 let dirty_rect = frame_state.current_dirty_region().combined;
                 let visibility_spatial_node = frame_state.current_dirty_region().visibility_spatial_node;
