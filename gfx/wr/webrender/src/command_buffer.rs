@@ -31,6 +31,8 @@ impl Command {
     const CMD_SET_SEGMENTS: u32 = 0x50000000;
     /// Draw a 3d-split-composite primitive.
     const CMD_DRAW_SPLIT_COMPOSITE: u32 = 0x60000000;
+    /// Draw a text run primitive (a slice of glyphs).
+    const CMD_DRAW_TEXT_RUN: u32 = 0x70000000;
 
     /// Bitmask for command bits of the command.
     const CMD_MASK: u32 = 0xf0000000;
@@ -68,6 +70,11 @@ impl Command {
 
     fn draw_quad(draw_index: storage::Index<PrimitiveDrawHeader>) -> Self {
         Command(Command::CMD_DRAW_QUAD | draw_index.0)
+    }
+
+    /// Encode drawing a text run prim.
+    fn draw_text_run(draw_index: storage::Index<PrimitiveDrawHeader>) -> Self {
+        Command(Command::CMD_DRAW_TEXT_RUN | draw_index.0)
     }
 }
 
@@ -130,6 +137,12 @@ pub enum PrimitiveCommand {
     Instance {
         draw_index: storage::Index<PrimitiveDrawHeader>,
         gpu_buffer_address: GpuBufferAddress,
+    },
+    /// Draw a run of glyphs. The per-run data (font, color, glyph offsets, glyph
+    /// key range) is reached via the draw header's `kind_scratch` TextRunScratch;
+    /// the batcher resolves and emits one instance per glyph.
+    TextRun {
+        draw_index: storage::Index<PrimitiveDrawHeader>,
     },
     Quad {
         pattern: PatternKind,
@@ -203,6 +216,14 @@ impl PrimitiveCommand {
         PrimitiveCommand::Instance {
             draw_index,
             gpu_buffer_address,
+        }
+    }
+
+    pub fn text_run(
+        draw_index: storage::Index<PrimitiveDrawHeader>,
+    ) -> Self {
+        PrimitiveCommand::TextRun {
+            draw_index,
         }
     }
 }
@@ -307,6 +328,9 @@ impl CommandBuffer {
             PrimitiveCommand::Instance { draw_index, gpu_buffer_address } => {
                 self.commands.push(Command::draw_instance(draw_index));
                 self.commands.push(Command::data(gpu_buffer_address.as_u32()));
+            }
+            PrimitiveCommand::TextRun { draw_index } => {
+                self.commands.push(Command::draw_text_run(draw_index));
             }
             PrimitiveCommand::Quad { pattern, pattern_input, draw_index, gpu_buffer_address, transform_id, quad_flags, edge_flags, src_color_task_ids, blend_mode } => {
                 self.commands.push(Command::draw_quad(draw_index));
@@ -420,6 +444,11 @@ impl CommandBuffer {
                         draw_index,
                         gpu_buffer_address,
                     );
+                    f(&cmd, current_spatial_node_index, &[]);
+                }
+                Command::CMD_DRAW_TEXT_RUN => {
+                    let draw_index = storage::Index::from_u32(param);
+                    let cmd = PrimitiveCommand::text_run(draw_index);
                     f(&cmd, current_spatial_node_index, &[]);
                 }
                 Command::CMD_SET_SEGMENTS => {

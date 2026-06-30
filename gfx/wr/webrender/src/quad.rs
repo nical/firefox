@@ -1111,66 +1111,45 @@ fn prepare_nine_patch(
     }
 }
 
-fn prepare_tiles(
-    prim_instance_index: PrimitiveInstanceIndex,
-    local_rect: &LayoutRect,
-    local_clip_rect: &LayoutRect,
-    device_clip_rect: &DeviceRect,
-    pattern: &Pattern,
-    mut quad_flags: QuadFlags,
-    aa_flags: EdgeMask,
-    clip_chain: &ClipChainInstance,
-    gpu_transform: GpuTransformId,
-    transform: &mut QuadTransformState,
-    pic_context: &PictureContext,
-    ctx: &PatternBuilderContext,
+/// Walk a clip chain and accumulate its device-space clip/mask regions into a
+/// classifier. Shared by the tiled-quad path and the text-run glyph classifier.
+///
+/// Returns false if a clip could not be reduced to device-space regions a
+/// classifier can reason about (currently only image-mask clips). In that case
+/// the whole primitive's surface rect is added as a mask region (conservative)
+/// and the caller should treat the primitive as fully masked / fall back.
+fn collect_clip_regions(
+    classifier: &mut QuadTileClassifier,
+    clips_range: ClipNodeRange,
+    raster_spatial_node_index: SpatialNodeIndex,
+    device_pixel_scale: DevicePixelScale,
+    unclipped_surface_rect: DeviceRect,
+    clip_store: &ClipStore,
     interned_clips: &DataStore<ClipIntern>,
-    frame_state: &mut FrameBuildingState,
-    scratch: &mut PrimitiveScratchBuffer,
-    targets: &[CommandBufferIndex],
-) {
-    // Render the primtive as a grid of tiles decomposed in device space.
-    // Tiles that need it are drawn in a render task and then composited into the
-    // destination picture.
-    // The coordinates are provided to the shaders:
-    //  - in layout space for the render task,
-    //  - in device space for the instances that draw into the destination picture.
-
-    let surface = &mut frame_state.surfaces[pic_context.surface_index.0];
-    surface.map_local_to_picture.set_target_spatial_node(
-        transform.prim_spatial_node_index(),
-        ctx.spatial_tree,
-    );
-
-    let unclipped_surface_rect = device_clip_rect.round_out();
-
-    let force_masks = !transform.is_2d_scale_offset();
-    // Set up the tile classifier for the params of this quad
-    scratch.retained.quad_tile_classifier.reset(
-        unclipped_surface_rect,
-        force_masks,
-    );
+    spatial_tree: &SpatialTree,
+) -> bool {
+    let mut classifiable = true;
 
     let mut clip_to_raster = SpaceMapper::<LayoutPixel, RasterPixel>::new(
-        transform.raster_spatial_node_index(),
+        raster_spatial_node_index,
         RasterRect::max_rect(),
     );
 
-    // Walk each clip, extract the local mask regions and add them to the tile classifier.
-    for i in 0 .. clip_chain.clips_range.count {
-        let clip_instance = frame_state.clip_store.get_instance_from_range(&clip_chain.clips_range, i);
+    // Walk each clip, extract the local mask regions and add them to the classifier.
+    for i in 0 .. clips_range.count {
+        let clip_instance = clip_store.get_instance_from_range(&clips_range, i);
         let clip_node = &interned_clips[clip_instance.handle];
 
-        clip_to_raster.set_target_spatial_node(clip_instance.spatial_node_index, ctx.spatial_tree);
+        clip_to_raster.set_target_spatial_node(clip_instance.spatial_node_index, spatial_tree);
 
         let transform = match clip_to_raster.as_2d_scale_offset() {
-            Some(t) => t.then_scale(transform.device_pixel_scale.0),
+            Some(t) => t.then_scale(device_pixel_scale.0),
             None => {
                 // If the clip transform is not axis-aligned, just assume the entire primitive
                 // is affected by the clip, for now.
                 // TODO: If we take this path, it means that we would have been better-off using
                 // the indirect rendering strategy.
-                scratch.retained.quad_tile_classifier.add_mask_region(unclipped_surface_rect);
+                classifier.add_mask_region(unclipped_surface_rect);
                 continue;
             }
         };
@@ -1179,7 +1158,7 @@ fn prepare_tiles(
         match clip_node.item.kind {
             ClipItemKind::Rectangle { mode } => {
                 let rect = transform.map_rect(&clip_instance.clip_rect);
-                scratch.retained.quad_tile_classifier.add_clip_rect(rect, mode);
+                classifier.add_clip_rect(rect, mode);
             }
             ClipItemKind::RoundedRectangle { mode: ClipMode::Clip, ref radius } => {
                 // For rounded-rects with Clip mode, we need a mask for each corner,
@@ -1223,11 +1202,11 @@ fn prepare_tiles(
                     r_bl,
                 );
 
-                scratch.retained.quad_tile_classifier.add_clip_rect(clip_device_rect, ClipMode::Clip);
-                scratch.retained.quad_tile_classifier.add_mask_region(c_tl);
-                scratch.retained.quad_tile_classifier.add_mask_region(c_tr);
-                scratch.retained.quad_tile_classifier.add_mask_region(c_br);
-                scratch.retained.quad_tile_classifier.add_mask_region(c_bl);
+                classifier.add_clip_rect(clip_device_rect, ClipMode::Clip);
+                classifier.add_mask_region(c_tl);
+                classifier.add_mask_region(c_tr);
+                classifier.add_mask_region(c_br);
+                classifier.add_mask_region(c_bl);
             }
             ClipItemKind::RoundedRectangle { mode: ClipMode::ClipOut, ref radius } => {
                 let radius = clamped_radius(radius, clip_instance.clip_rect.size());
@@ -1236,19 +1215,147 @@ fn prepare_tiles(
                 match extract_inner_rect_k(&clip_instance.clip_rect, &radius, 0.5) {
                     Some(ref inner_rect) => {
                         let rect = transform.map_rect(inner_rect);
-                        scratch.retained.quad_tile_classifier.add_clip_rect(rect, ClipMode::ClipOut);
+                        classifier.add_clip_rect(rect, ClipMode::ClipOut);
                     }
                     None => {
                         let clip_device_rect = transform.map_rect(&clip_instance.clip_rect);
-                        scratch.retained.quad_tile_classifier.add_mask_region(clip_device_rect);
+                        classifier.add_mask_region(clip_device_rect);
                     }
                 }
             }
             ClipItemKind::Image { .. } => {
-                panic!("bug: image clips unexpected in this path");
+                // Image-mask clips can't be reduced to rectangle/mask regions here.
+                // Conservatively mask the whole surface and report unclassifiable so
+                // the caller can fall back.
+                classifier.add_mask_region(unclipped_surface_rect);
+                classifiable = false;
             }
         }
     }
+
+    classifiable
+}
+
+/// Decide whether a clipped text run can skip the legacy whole-prim clip mask
+/// and use the new clip-free `PrimitiveCommand::TextRun` path, relying on the
+/// prim's local clip rect for clipping.
+///
+/// This is true only when the run's device bounding rect sits entirely in the
+/// clip interior: the prim transform is an axis-aligned 2D scale-offset, all
+/// clips are classifiable (no image masks), and the run rect is inside the
+/// clip-in region(s) without touching any mask region (rounded-rect corners,
+/// clip-out areas). In that case only axis-aligned rectangle clipping remains,
+/// which the local clip rect already applies in the shader.
+///
+/// `classifier` is borrowed scratch; its contents are clobbered.
+pub fn text_run_can_skip_mask(
+    clip_chain: &ClipChainInstance,
+    local_rect: &LayoutRect,
+    prim_spatial_node_index: SpatialNodeIndex,
+    raster_spatial_node_index: SpatialNodeIndex,
+    device_pixel_scale: DevicePixelScale,
+    clip_store: &ClipStore,
+    interned_clips: &DataStore<ClipIntern>,
+    spatial_tree: &SpatialTree,
+    classifier: &mut QuadTileClassifier,
+) -> bool {
+    // Map the run's local rect to device space using the same
+    // prim -> raster (scale-offset) * device_pixel_scale mapping that
+    // `collect_clip_regions` applies to the clips, so both live in the same
+    // device space.
+    let mut prim_to_raster = SpaceMapper::<LayoutPixel, RasterPixel>::new(
+        raster_spatial_node_index,
+        RasterRect::max_rect(),
+    );
+    prim_to_raster.set_target_spatial_node(prim_spatial_node_index, spatial_tree);
+
+    let Some(scale_offset) = prim_to_raster.as_2d_scale_offset() else {
+        // Non-axis-aligned prim transform: would force every glyph to be masked.
+        return false;
+    };
+
+    let run_device_rect: DeviceRect = scale_offset
+        .then_scale(device_pixel_scale.0)
+        .map_rect(local_rect);
+
+    if run_device_rect.is_empty() {
+        return false;
+    }
+
+    classifier.reset_regions(run_device_rect, false);
+
+    let classifiable = collect_clip_regions(
+        classifier,
+        clip_chain.clips_range,
+        raster_spatial_node_index,
+        device_pixel_scale,
+        run_device_rect,
+        clip_store,
+        interned_clips,
+        spatial_tree,
+    );
+
+    if !classifiable {
+        return false;
+    }
+
+    matches!(
+        classifier.classify_rect(run_device_rect),
+        QuadTileKind::Pattern { has_mask: false }
+    )
+}
+
+fn prepare_tiles(
+    prim_instance_index: PrimitiveInstanceIndex,
+    local_rect: &LayoutRect,
+    local_clip_rect: &LayoutRect,
+    device_clip_rect: &DeviceRect,
+    pattern: &Pattern,
+    mut quad_flags: QuadFlags,
+    aa_flags: EdgeMask,
+    clip_chain: &ClipChainInstance,
+    gpu_transform: GpuTransformId,
+    transform: &mut QuadTransformState,
+    pic_context: &PictureContext,
+    ctx: &PatternBuilderContext,
+    interned_clips: &DataStore<ClipIntern>,
+    frame_state: &mut FrameBuildingState,
+    scratch: &mut PrimitiveScratchBuffer,
+    targets: &[CommandBufferIndex],
+) {
+    // Render the primtive as a grid of tiles decomposed in device space.
+    // Tiles that need it are drawn in a render task and then composited into the
+    // destination picture.
+    // The coordinates are provided to the shaders:
+    //  - in layout space for the render task,
+    //  - in device space for the instances that draw into the destination picture.
+
+    let surface = &mut frame_state.surfaces[pic_context.surface_index.0];
+    surface.map_local_to_picture.set_target_spatial_node(
+        transform.prim_spatial_node_index(),
+        ctx.spatial_tree,
+    );
+
+    let unclipped_surface_rect = device_clip_rect.round_out();
+
+    let force_masks = !transform.is_2d_scale_offset();
+    // Set up the tile classifier for the params of this quad
+    scratch.retained.quad_tile_classifier.reset(
+        unclipped_surface_rect,
+        force_masks,
+    );
+
+    let classifiable = collect_clip_regions(
+        &mut scratch.retained.quad_tile_classifier,
+        clip_chain.clips_range,
+        transform.raster_spatial_node_index(),
+        transform.device_pixel_scale,
+        unclipped_surface_rect,
+        frame_state.clip_store,
+        interned_clips,
+        ctx.spatial_tree,
+    );
+    debug_assert!(classifiable, "bug: image clips unexpected in the tiled path");
 
     let indirect_prim_address = write_prim_blocks(
         &mut frame_state.frame_gpu_data.f32,
@@ -2405,6 +2512,60 @@ impl QuadTileClassifier {
 
             y0 = y1;
         }
+    }
+
+    /// Clear the accumulated regions for use with `classify_rect`, without
+    /// building the tile grid. Used by the text-run path, which classifies
+    /// individual glyph rects rather than a grid of tiles. `rect` is the
+    /// primitive's device bounding rect; it seeds the mask region used by
+    /// clip-out clips (mirroring `add_clip_rect`'s use of `self.rect`).
+    pub fn reset_regions(
+        &mut self,
+        rect: DeviceRect,
+        force_masks: bool,
+    ) {
+        self.x_tiles = 0;
+        self.y_tiles = 0;
+        self.rect = rect;
+        self.force_masks = force_masks;
+        self.mask_regions.clear();
+        self.clip_in_regions.clear();
+        self.clip_out_regions.clear();
+    }
+
+    /// Classify a single rect against the accumulated clip/mask regions (without
+    /// the tile grid). Mirrors the per-tile logic in `classify`: a rect fully
+    /// outside a clip-in region or fully inside a clip-out region is `Clipped`;
+    /// a rect intersecting a mask region needs a mask; otherwise it is an
+    /// unmasked pattern (axis-aligned rect clips are handled by the prim's
+    /// local clip rect, so they don't produce mask regions).
+    pub fn classify_rect(
+        &self,
+        rect: DeviceRect,
+    ) -> QuadTileKind {
+        if self.force_masks {
+            return QuadTileKind::Pattern { has_mask: true };
+        }
+
+        for clip_region in &self.clip_in_regions {
+            if !clip_region.intersects(&rect) {
+                return QuadTileKind::Clipped;
+            }
+        }
+
+        for clip_region in &self.clip_out_regions {
+            if clip_region.contains_box(&rect) {
+                return QuadTileKind::Clipped;
+            }
+        }
+
+        for mask_region in &self.mask_regions {
+            if mask_region.intersects(&rect) {
+                return QuadTileKind::Pattern { has_mask: true };
+            }
+        }
+
+        QuadTileKind::Pattern { has_mask: false }
     }
 
     /// Add an area that needs a clip mask / indirect area

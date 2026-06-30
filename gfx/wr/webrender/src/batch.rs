@@ -884,6 +884,13 @@ impl BatchBuilder {
             PrimitiveCommand::Instance { draw_index, .. } => {
                 draw_index
             }
+            PrimitiveCommand::TextRun { draw_index } => {
+                // M1: unclipped text runs only. They carry no clip mask
+                // (clip_task_index is INVALID), so the shared PrimitiveKind::TextRun
+                // batch arm below renders them identically to the legacy Simple
+                // path. M2 will split this into a dedicated, clip-free path.
+                draw_index
+            }
             PrimitiveCommand::Quad { pattern, pattern_input, draw_index, gpu_buffer_address, quad_flags, edge_flags, transform_id, src_color_task_ids, blend_mode } => {
                 let prim_info = &ctx.scratch.frame.draws[draw_index.0 as usize];
                 let bounding_rect = &prim_info.clip_chain.pic_coverage_rect;

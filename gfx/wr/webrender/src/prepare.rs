@@ -312,6 +312,28 @@ fn prepare_prim_for_render(
         // generation.
         let should_update_clip_task = match &mut prim_instance.kind {
             PrimitiveKind::Picture { .. } => false,
+            // Text runs use the new PrimitiveCommand::TextRun path. Unclipped
+            // runs, and clipped runs whose device bounding rect sits in the clip
+            // interior (only axis-aligned rect clipping remains, applied by the
+            // shader's local clip rect), skip the legacy whole-prim clip mask.
+            // Runs that would need a real mask (rounded-rect corners, clip-out,
+            // image masks, non-axis-aligned transforms) still build it here and
+            // fall back to legacy masking until M2's per-glyph indirect path.
+            PrimitiveKind::TextRun { .. } => {
+                let clip_chain = scratch.frame.draws[prim_instance_index].clip_chain;
+                clip_chain.needs_mask
+                    && !quad::text_run_can_skip_mask(
+                        &clip_chain,
+                        &prim_instance.unsnapped_prim_rect,
+                        cluster.spatial_node_index,
+                        pic_context.raster_spatial_node_index,
+                        frame_state.surfaces[pic_context.surface_index.0].device_pixel_scale,
+                        frame_state.clip_store,
+                        &data_stores.clip,
+                        frame_context.spatial_tree,
+                        &mut scratch.retained.quad_tile_classifier,
+                    )
+            }
             _ => use_legacy_path,
         };
 
@@ -749,6 +771,20 @@ fn prepare_prim_for_render(
             );
             scratch.frame.draws[prim_instance_index.0 as usize].kind_scratch =
                 KindScratchHandle::TextRun(text_run_handle);
+
+            // Text runs are emitted via a dedicated command rather than the
+            // generic Simple path. In M1 both clipped and unclipped runs use it;
+            // clipped runs still carry a legacy clip mask (clip_task_index, built
+            // by update_clip_task above) that the shared batch arm applies, while
+            // unclipped runs carry no mask. Reaching this arm implies the prim is
+            // visible (allow_subpixel above panics otherwise).
+            frame_state.push_prim(
+                &PrimitiveCommand::text_run(storage::Index::from_u32(prim_instance_index.0)),
+                prim_spatial_node_index,
+                targets,
+            );
+
+            return;
         }
         PrimitiveKind::NormalBorder { data_handle } => {
             profile_scope!("NormalBorder");

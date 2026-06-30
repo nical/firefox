@@ -1,3 +1,5 @@
+== clipout-all.yaml blank.yaml
+== clip-rounded-interior.yaml clip-rounded-interior-ref.yaml
 != text.yaml blank.yaml
 != long-text.yaml blank.yaml
 != negative-pos.yaml blank.yaml
