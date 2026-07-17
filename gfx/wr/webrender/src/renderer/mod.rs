@@ -4986,6 +4986,8 @@ impl Renderer {
             image_handler.data.insert((ext.id, ext.channel_index), value);
         }
 
+        self.device.begin_frame();
+
         if let Some(external_resources) = config.deserialize_for_resource::<PlainExternalResources, _>("external_resources") {
             info!("loading external texture-backed images");
             let mut native_map = FastHashMap::<String, gl::GLuint>::default();
@@ -5026,8 +5028,6 @@ impl Renderer {
                 image_handler.data.insert(key, value);
             }
         }
-
-        self.device.begin_frame();
 
         if let Some(renderer) = config.deserialize_for_resource::<PlainRenderer, _>("renderer") {
             info!("loading cached textures");
