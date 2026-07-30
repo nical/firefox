@@ -134,7 +134,7 @@ fuzzy(35,1000) fuzzy-if(platform(swgl),60,2900) == radial-segments-rotated-clipp
 
 # Bug 2057205 - a non-repeating radial gradient must not be repeated because of
 # rounding in the stretch-ratio round-trip.
-== radial-spurious-repeat.yaml radial-spurious-repeat-ref.yaml
+scale(*) == radial-spurious-repeat.yaml radial-spurious-repeat-ref.yaml
 
 # crash tests
 scale(*) == linear-far-endpoints.yaml linear-far-endpoints.yaml
