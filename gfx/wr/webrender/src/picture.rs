@@ -476,7 +476,7 @@ impl PrimitiveList {
         // culling rect (clip-leaf rect ∩ prim_rect). Both inputs are pre-snap;
         // the cluster bounding rect is re-snapped each frame in
         // `PictureInstance::propagate_bounding_rect`.
-        let culling_rect = clip_leaf.unsnapped_local_clip_rect
+        let culling_rect = clip_leaf.unsnapped_bounds
             .intersection(&prim_rect)
             .unwrap_or_else(LayoutRect::zero);
 

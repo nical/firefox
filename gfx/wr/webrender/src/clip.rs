@@ -198,13 +198,13 @@ pub struct ClipTreeLeaf {
     //           it will compatible clip rects from the `node_id`.
     /// Leaf-local clip rect as authored by the display list (not snapped to
     /// the device pixel grid).
-    pub unsnapped_local_clip_rect: LayoutRect,
-    /// `unsnapped_local_clip_rect` snapped against the current spatial tree
+    pub unsnapped_bounds: LayoutRect,
+    /// `unsnapped_bounds` snapped against the current spatial tree
     /// in the owning primitive's cluster spatial-node space. Written each
     /// frame by the visibility pass from the cluster loop, using the cluster's
     /// (resolved) spatial node as the snap target. Picture / tile-cache leaves
     /// carry `max_rect` and pass through unchanged.
-    pub snapped_local_clip_rect: LayoutRect,
+    pub snapped_bounds: LayoutRect,
 }
 
 /// ID for a ClipTreeNode
@@ -386,7 +386,7 @@ impl ClipTree {
     }
 
     /// Mutable accessor for a single leaf. Used by the visibility pass from
-    /// inside the cluster loop to refresh `snapped_local_clip_rect` against
+    /// inside the cluster loop to refresh `snapped_bounds` against
     /// the same spatial node as the owning prim's rect.
     pub fn get_leaf_mut(&mut self, id: ClipLeafId) -> &mut ClipTreeLeaf {
         &mut self.leaves[id.0 as usize]
@@ -423,7 +423,7 @@ impl ClipTree {
 
             pt.new_level(format!("{:?}", id));
             pt.add_item(format!("node_id: {:?}", leaf.node_id));
-            pt.add_item(format!("unsnapped_local_clip_rect: {:?}", leaf.unsnapped_local_clip_rect));
+            pt.add_item(format!("unsnapped_bounds: {:?}", leaf.unsnapped_bounds));
             pt.end_level();
         }
 
@@ -978,8 +978,8 @@ impl ClipTreeBuilder {
             node_id,
             // Surfaces snap nothing and pass `max_rect` through.
             prim_clip_root: ClipNodeId::INVALID,
-            unsnapped_local_clip_rect: LayoutRect::max_rect(),
-            snapped_local_clip_rect: LayoutRect::max_rect(),
+            unsnapped_bounds: LayoutRect::max_rect(),
+            snapped_bounds: LayoutRect::max_rect(),
         });
 
         clip_leaf_id
@@ -1010,8 +1010,8 @@ impl ClipTreeBuilder {
         self.tree.leaves.push(ClipTreeLeaf {
             node_id,
             prim_clip_root,
-            unsnapped_local_clip_rect: LayoutRect::max_rect(),
-            snapped_local_clip_rect: LayoutRect::max_rect(),
+            unsnapped_bounds: LayoutRect::max_rect(),
+            snapped_bounds: LayoutRect::max_rect(),
         });
 
         clip_leaf_id
@@ -1062,8 +1062,8 @@ impl ClipTreeBuilder {
         self.tree.leaves.push(ClipTreeLeaf {
             node_id,
             prim_clip_root,
-            unsnapped_local_clip_rect: info.clip_rect,
-            snapped_local_clip_rect: LayoutRect::zero(),
+            unsnapped_bounds: info.clip_rect,
+            snapped_bounds: LayoutRect::zero(),
         });
 
         clip_leaf_id
@@ -1537,7 +1537,7 @@ impl ClipStore {
         // matching its contents (bug 2050692); a text run rounds out on the
         // non-sub-pixel axis (bug 2055145). The leaf clip rect was pre-snapped
         // accordingly by the visibility pass.
-        let mut local_clip_rect = clip_leaf.snapped_local_clip_rect;
+        let mut local_clip_rect = clip_leaf.snapped_bounds;
         let mut current = clip_leaf.node_id;
 
         while current != clip_root && current != ClipNodeId::NONE {

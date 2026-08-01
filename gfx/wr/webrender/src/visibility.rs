@@ -387,8 +387,8 @@ pub fn update_prim_visibility(
             // prims (crisp fill/border edges), exact for surfaces, and round-out
             // on the non-sub-pixel axis for text runs (bug 2055145).
             let leaf = frame_state.clip_tree.get_leaf_mut(leaf_id);
-            let unsnapped = leaf.unsnapped_local_clip_rect;
-            leaf.snapped_local_clip_rect = if unsnapped == LayoutRect::max_rect() {
+            let unsnapped = leaf.unsnapped_bounds;
+            leaf.snapped_bounds = if unsnapped == LayoutRect::max_rect() {
                 unsnapped
             } else {
                 match policy.clip {
