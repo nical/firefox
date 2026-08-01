@@ -70,24 +70,24 @@ impl Example for App {
             // start with a white background
             let info = CommonItemProperties::new((0, 0).to(1000, 1000), space_and_clip1);
             builder.push_hit_test(
-                info.clip_rect,
+                info.bounds,
                 ClipChainId::INVALID,
                 info.spatial_id,
                 info.flags,
                 (0, 1)
             );
-            builder.push_rect(&info, info.clip_rect, ColorF::new(1.0, 1.0, 1.0, 1.0));
+            builder.push_rect(&info, info.bounds, ColorF::new(1.0, 1.0, 1.0, 1.0));
 
             // let's make a 50x50 blue square as a visual reference
             let info = CommonItemProperties::new((0, 0).to(50, 50), space_and_clip1);
             builder.push_hit_test(
-                info.clip_rect,
+                info.bounds,
                 ClipChainId::INVALID,
                 info.spatial_id,
                 info.flags,
                 (0, 2)
             );
-            builder.push_rect(&info, info.clip_rect, ColorF::new(0.0, 0.0, 1.0, 1.0));
+            builder.push_rect(&info, info.bounds, ColorF::new(0.0, 0.0, 1.0, 1.0));
 
             // and a 50x50 green square next to it with an offset clip
             // to see what that looks like
@@ -96,13 +96,13 @@ impl Example for App {
                 space_and_clip1,
             );
             builder.push_hit_test(
-                info.clip_rect,
+                info.bounds,
                 ClipChainId::INVALID,
                 info.spatial_id,
                 info.flags,
                 (0, 3)
             );
-            builder.push_rect(&info, info.clip_rect, ColorF::new(0.0, 1.0, 0.0, 1.0));
+            builder.push_rect(&info, info.bounds, ColorF::new(0.0, 1.0, 0.0, 1.0));
 
             // Below the above rectangles, set up a nested scrollbox. It's still in
             // the same stacking context, so note that the rects passed in need to
@@ -128,25 +128,25 @@ impl Example for App {
                 space_and_clip2,
             );
             builder.push_hit_test(
-                info.clip_rect,
+                info.bounds,
                 ClipChainId::INVALID,
                 info.spatial_id,
                 info.flags,
                 (0, 4)
             );
-            builder.push_rect(&info, info.clip_rect, ColorF::new(0.5, 0.5, 0.5, 1.0));
+            builder.push_rect(&info, info.bounds, ColorF::new(0.5, 0.5, 0.5, 1.0));
 
             // add a teal square to visualize the scrolling/clipping behaviour
             // as you scroll the nested scrollbox
             let info = CommonItemProperties::new((0, 200).to(50, 250), space_and_clip2);
             builder.push_hit_test(
-                info.clip_rect,
+                info.bounds,
                 ClipChainId::INVALID,
                 info.spatial_id,
                 info.flags,
                 (0, 5)
             );
-            builder.push_rect(&info, info.clip_rect, ColorF::new(0.0, 1.0, 1.0, 1.0));
+            builder.push_rect(&info, info.bounds, ColorF::new(0.0, 1.0, 1.0, 1.0));
 
             // Add a sticky frame. It will "stick" twice while scrolling, once
             // at a margin of 10px from the bottom, for 40 pixels of scrolling,
@@ -170,7 +170,7 @@ impl Example for App {
                 },
             );
             builder.push_hit_test(
-                info.clip_rect,
+                info.bounds,
                 ClipChainId::INVALID,
                 info.spatial_id,
                 info.flags,
@@ -178,7 +178,7 @@ impl Example for App {
             );
             builder.push_rect(
                 &info,
-                info.clip_rect,
+                info.bounds,
                 ColorF::new(0.5, 0.5, 1.0, 1.0),
             );
 
@@ -189,13 +189,13 @@ impl Example for App {
                 space_and_clip2,
             );
             builder.push_hit_test(
-                info.clip_rect,
+                info.bounds,
                 ClipChainId::INVALID,
                 info.spatial_id,
                 info.flags,
                 (0, 7)
             );
-            builder.push_rect(&info, info.clip_rect, ColorF::new(0.0, 1.0, 1.0, 1.0));
+            builder.push_rect(&info, info.bounds, ColorF::new(0.0, 1.0, 1.0, 1.0));
 
             builder.pop_stacking_context();
         }

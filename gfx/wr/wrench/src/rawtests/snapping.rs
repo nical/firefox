@@ -366,7 +366,7 @@ fn dl_clear(
 
     builder.push_rect(
         &CommonItemProperties {
-            clip_rect: bounds,
+            bounds,
             clip_chain_id: ClipChainId::INVALID,
             spatial_id: ctx.root_spatial_id,
             flags: PrimitiveFlags::default(),
@@ -415,7 +415,7 @@ fn dl_simple_rect(
 
     builder.push_rect(
         &CommonItemProperties {
-            clip_rect: bounds,
+            bounds,
             clip_chain_id: ClipChainId::INVALID,
             spatial_id: ctx.root_spatial_id,
             flags: PrimitiveFlags::default(),
@@ -464,7 +464,7 @@ fn dl_simple_glyph(
 
     builder.push_text(
         &CommonItemProperties {
-            clip_rect: bounds,
+            bounds,
             clip_chain_id: ClipChainId::INVALID,
             spatial_id: ctx.root_spatial_id,
             flags: PrimitiveFlags::default(),
@@ -535,7 +535,7 @@ fn dl_scrolling1(
 
     builder.push_rect(
         &CommonItemProperties {
-            clip_rect: bounds,
+            bounds,
             clip_chain_id: ClipChainId::INVALID,
             spatial_id: scroll_id,
             flags: PrimitiveFlags::default(),
@@ -599,7 +599,7 @@ fn dl_scrolling_ext1(
 
     builder.push_rect(
         &CommonItemProperties {
-            clip_rect: bounds,
+            bounds,
             clip_chain_id: ClipChainId::INVALID,
             spatial_id: scroll_id,
             flags: PrimitiveFlags::default(),

@@ -551,7 +551,7 @@ impl YamlFrameReader {
         };
 
         let mut info = CommonItemProperties {
-            clip_rect: LayoutRect::zero(),
+            bounds: LayoutRect::zero(),
             clip_chain_id: ClipChainId::INVALID,
             spatial_id: SpatialId::new(0, PipelineId::dummy()),
             flags: PrimitiveFlags::default(),
@@ -930,14 +930,14 @@ impl YamlFrameReader {
         item: &Yaml,
         info: &mut CommonItemProperties,
     ) {
-        info.clip_rect = try_intersect!(
+        info.bounds = try_intersect!(
             item["bounds"].as_rect().expect("hit-test type must have bounds"),
-            &info.clip_rect
+            &info.bounds
         );
 
         if let Some(tag) = self.to_hit_testing_tag(&item["hit-testing-tag"]) {
             dl.push_hit_test(
-                info.clip_rect,
+                info.bounds,
                 info.clip_chain_id,
                 info.spatial_id,
                 info.flags,
@@ -1646,7 +1646,7 @@ impl YamlFrameReader {
         let ignore = item["ignore_missing_pipeline"].as_bool().unwrap_or(true);
         dl.push_iframe(
             bounds,
-            info.clip_rect,
+            info.bounds,
             &SpaceAndClipInfo {
                 spatial_id: info.spatial_id,
                 clip_chain_id: info.clip_chain_id
@@ -1716,7 +1716,7 @@ impl YamlFrameReader {
 
 
             let mut info = CommonItemProperties {
-                clip_rect,
+                bounds: clip_rect,
                 clip_chain_id,
                 spatial_id: self.top_space(),
                 flags,
@@ -2265,9 +2265,9 @@ impl YamlFrameReader {
         item: &Yaml,
         info: &mut CommonItemProperties,
     ) {
-        info.clip_rect = try_intersect!(
+        info.bounds = try_intersect!(
             self.resolve_rect(&item["bounds"]),
-            &info.clip_rect
+            &info.bounds
         );
 
         let filters = item["filters"].as_vec_filter_op().unwrap_or_default();

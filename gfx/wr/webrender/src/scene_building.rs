@@ -1273,7 +1273,7 @@ impl<'a> SceneBuilder<'a> {
         // been removed by the display-list builder. Snap is not applied here;
         // it happens at frame time in the in-frame picture-graph passes (see
         // `SpaceSnapper`).
-        let clip_rect = common.clip_rect;
+        let clip_rect = common.bounds;
         let prim_rect = bounds.unwrap_or(clip_rect);
         let unsnapped_rect = prim_rect;
 

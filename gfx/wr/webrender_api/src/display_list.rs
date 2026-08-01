@@ -1602,7 +1602,7 @@ impl DisplayListBuilder {
         let clip_chain_id = self.define_clip_chain(parent, clips);
 
         let rect_common = di::CommonItemProperties {
-            clip_rect: common.clip_rect,
+            bounds: common.bounds,
             clip_chain_id,
             spatial_id,
             flags: common.flags,
@@ -1970,7 +1970,7 @@ impl DisplayListBuilder {
     }
 
     /// As `normalize_rect`, but for the common-properties chokepoint: returns a
-    /// copy with `clip_rect` normalized, plus the offset to apply to the item's
+    /// copy with `bounds` normalized, plus the offset to apply to the item's
     /// own geometry (bounds, glyphs, ...).
     fn normalize_common(
         &mut self,
@@ -1978,7 +1978,7 @@ impl DisplayListBuilder {
     ) -> (di::CommonItemProperties, LayoutVector2D) {
         let offset = self.accumulated_scroll_offset(common.spatial_id);
         let mut common = *common;
-        common.clip_rect = common.clip_rect.translate(offset);
+        common.bounds = common.bounds.translate(offset);
         (common, offset)
     }
 
@@ -2359,7 +2359,7 @@ impl DisplayListBuilder {
         // scene builder (which rasterized the shadowed primitives unclipped and
         // clipped the composited picture).
         let shift = |mut common: di::CommonItemProperties| -> di::CommonItemProperties {
-            common.clip_rect = common.clip_rect.translate(offset);
+            common.bounds = common.bounds.translate(offset);
             common.clip_chain_id = di::ClipChainId::INVALID;
             common
         };

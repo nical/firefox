@@ -77,9 +77,9 @@ impl Default for PrimitiveFlags {
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct CommonItemProperties {
     /// Bounds of the display item to clip to. Many items are logically
-    /// infinite, and rely on this clip_rect to define their bounds
+    /// infinite, and rely on these bounds to define their extent
     /// (solid colors, background-images, gradients, etc).
-    pub clip_rect: LayoutRect,
+    pub bounds: LayoutRect,
     /// Additional clips
     pub clip_chain_id: ClipChainId,
     /// The coordinate-space the item is in (yes, it can be really granular)
@@ -91,11 +91,11 @@ pub struct CommonItemProperties {
 impl CommonItemProperties {
     /// Convenience for tests.
     pub fn new(
-        clip_rect: LayoutRect,
+        bounds: LayoutRect,
         space_and_clip: SpaceAndClipInfo,
     ) -> Self {
         Self {
-            clip_rect,
+            bounds,
             spatial_id: space_and_clip.spatial_id,
             clip_chain_id: space_and_clip.clip_chain_id,
             flags: PrimitiveFlags::default(),
@@ -339,11 +339,11 @@ pub struct HitTestDisplayItem {
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct LineDisplayItem {
     pub common: CommonItemProperties,
-    /// We need a separate rect from common.clip_rect to encode cute
+    /// We need a separate rect from common.bounds to encode cute
     /// tricks that firefox does to make a series of text-decorations seamlessly
     /// line up -- snapping the decorations to a multiple of their period, and
     /// then clipping them to their "proper" area. This rect is that "logical"
-    /// snapped area that may be clipped to the right size by the clip_rect.
+    /// snapped area that may be clipped to the right size by common.bounds.
     pub area: LayoutRect,
     /// Whether the rect is interpretted as vertical or horizontal
     pub orientation: LineOrientation,
@@ -684,10 +684,10 @@ impl Gradient {
 /// The area
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct GradientDisplayItem {
-    /// NOTE: common.clip_rect is the area the gradient covers
+    /// NOTE: common.bounds is the area the gradient covers
     pub common: CommonItemProperties,
     /// The area to tile the gradient over (first tile starts at origin of this rect)
-    // FIXME: this should ideally just be `tile_origin` here, with the clip_rect
+    // FIXME: this should ideally just be `tile_origin` here, with common.bounds
     // defining the bounds of the item. Needs non-trivial backend changes.
     pub bounds: LayoutRect,
     /// How big a tile of the of the gradient should be (common case: bounds.size)
@@ -752,7 +752,7 @@ pub struct ClipChainItem {
 pub struct RadialGradientDisplayItem {
     pub common: CommonItemProperties,
     /// The area to tile the gradient over (first tile starts at origin of this rect)
-    // FIXME: this should ideally just be `tile_origin` here, with the clip_rect
+    // FIXME: this should ideally just be `tile_origin` here, with common.bounds
     // defining the bounds of the item. Needs non-trivial backend changes.
     pub bounds: LayoutRect,
     pub gradient: RadialGradient,
@@ -764,7 +764,7 @@ pub struct RadialGradientDisplayItem {
 pub struct ConicGradientDisplayItem {
     pub common: CommonItemProperties,
     /// The area to tile the gradient over (first tile starts at origin of this rect)
-    // FIXME: this should ideally just be `tile_origin` here, with the clip_rect
+    // FIXME: this should ideally just be `tile_origin` here, with common.bounds
     // defining the bounds of the item. Needs non-trivial backend changes.
     pub bounds: LayoutRect,
     pub gradient: ConicGradient,
@@ -1930,7 +1930,7 @@ pub struct IframeDisplayItem {
 pub struct ImageDisplayItem {
     pub common: CommonItemProperties,
     /// The area to tile the image over (first tile starts at origin of this rect)
-    // FIXME: this should ideally just be `tile_origin` here, with the clip_rect
+    // FIXME: this should ideally just be `tile_origin` here, with common.bounds
     // defining the bounds of the item. Needs non-trivial backend changes.
     pub bounds: LayoutRect,
     pub image_key: ImageKey,
@@ -1951,7 +1951,7 @@ pub struct ImageDisplayItem {
 pub struct RepeatingImageDisplayItem {
     pub common: CommonItemProperties,
     /// The area to tile the image over (first tile starts at origin of this rect)
-    // FIXME: this should ideally just be `tile_origin` here, with the clip_rect
+    // FIXME: this should ideally just be `tile_origin` here, with common.bounds
     // defining the bounds of the item. Needs non-trivial backend changes.
     pub bounds: LayoutRect,
     /// How large to make a single tile of the image (common case: bounds.size)

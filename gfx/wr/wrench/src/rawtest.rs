@@ -119,10 +119,10 @@ impl<'a> RawtestHarness<'a> {
         self.wrench.api.send_transaction(self.wrench.document_id, txn);
     }
 
-    pub fn make_common_properties(&self, clip_rect: LayoutRect) -> CommonItemProperties {
+    pub fn make_common_properties(&self, bounds: LayoutRect) -> CommonItemProperties {
         let space_and_clip = SpaceAndClipInfo::root_scroll(self.wrench.root_pipeline_id);
         CommonItemProperties {
-            clip_rect,
+            bounds,
             clip_chain_id: space_and_clip.clip_chain_id,
             spatial_id: space_and_clip.spatial_id,
             flags: PrimitiveFlags::default(),
@@ -131,12 +131,12 @@ impl<'a> RawtestHarness<'a> {
 
     pub fn make_common_properties_with_clip_and_spatial(
         &self,
-        clip_rect: LayoutRect,
+        bounds: LayoutRect,
         clip_chain_id: ClipChainId,
         spatial_id: SpatialId
     ) -> CommonItemProperties {
         CommonItemProperties {
-            clip_rect,
+            bounds,
             clip_chain_id,
             spatial_id,
             flags: PrimitiveFlags::default(),
@@ -166,7 +166,7 @@ impl<'a> RawtestHarness<'a> {
 
         builder.push_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             ImageRendering::Auto,
             AlphaType::PremultipliedAlpha,
             img,
@@ -195,7 +195,7 @@ impl<'a> RawtestHarness<'a> {
 
         builder.push_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             ImageRendering::Auto,
             AlphaType::PremultipliedAlpha,
             img,
@@ -222,7 +222,7 @@ impl<'a> RawtestHarness<'a> {
 
         builder.push_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             ImageRendering::Auto,
             AlphaType::PremultipliedAlpha,
             img,
@@ -261,7 +261,7 @@ impl<'a> RawtestHarness<'a> {
         // setup some malicious image size parameters
         builder.push_repeating_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             size2(151., 56.0),
             size2(151.0, 56.0),
             ImageRendering::Auto,
@@ -326,7 +326,7 @@ impl<'a> RawtestHarness<'a> {
         let clip_chain_id = builder.define_clip_chain(None, [clip_id]);
 
         let info = CommonItemProperties {
-            clip_rect: rect(0.0, 0.0, 800.0, 800.0).to_box2d(),
+            bounds: rect(0.0, 0.0, 800.0, 800.0).to_box2d(),
             clip_chain_id,
             spatial_id: root_space_and_clip.spatial_id,
             flags: PrimitiveFlags::default(),
@@ -410,7 +410,7 @@ impl<'a> RawtestHarness<'a> {
         let clip_chain_id = builder.define_clip_chain(None, [clip_id]);
 
         let info = CommonItemProperties {
-            clip_rect: rect(10.0, 10.0, 400.0, 400.0).to_box2d(),
+            bounds: rect(10.0, 10.0, 400.0, 400.0).to_box2d(),
             clip_chain_id,
             spatial_id: root_space_and_clip.spatial_id,
             flags: PrimitiveFlags::default(),
@@ -418,7 +418,7 @@ impl<'a> RawtestHarness<'a> {
 
         builder.push_repeating_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             image_size,
             image_size,
             ImageRendering::Auto,
@@ -503,7 +503,7 @@ impl<'a> RawtestHarness<'a> {
         let clip_chain_id = builder.define_clip_chain(None, [clip_id]);
 
         let info = CommonItemProperties {
-            clip_rect: rect(0.0, 0.0, 1000.0, 1000.0).to_box2d(),
+            bounds: rect(0.0, 0.0, 1000.0, 1000.0).to_box2d(),
             clip_chain_id,
             spatial_id: root_space_and_clip.spatial_id,
             flags: PrimitiveFlags::default(),
@@ -549,7 +549,7 @@ impl<'a> RawtestHarness<'a> {
         let clip_chain_id = builder.define_clip_chain(None, [clip_id]);
 
         let info = CommonItemProperties {
-            clip_rect: rect(0.0, 0.0, 1000.0, 1000.0).to_box2d(),
+            bounds: rect(0.0, 0.0, 1000.0, 1000.0).to_box2d(),
             clip_chain_id,
             spatial_id: root_space_and_clip.spatial_id,
             flags: PrimitiveFlags::default(),
@@ -597,7 +597,7 @@ impl<'a> RawtestHarness<'a> {
         let clip_chain_id = builder.define_clip_chain(None, [clip_id]);
 
         let info = CommonItemProperties {
-            clip_rect: rect(0.0, 0.0, 1000.0, 1000.0).to_box2d(),
+            bounds: rect(0.0, 0.0, 1000.0, 1000.0).to_box2d(),
             clip_chain_id,
             spatial_id: root_space_and_clip.spatial_id,
             flags: PrimitiveFlags::default(),
@@ -660,7 +660,7 @@ impl<'a> RawtestHarness<'a> {
         // setup some malicious image size parameters
         builder.push_repeating_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             image_size,
             image_size,
             ImageRendering::Auto,
@@ -687,7 +687,7 @@ impl<'a> RawtestHarness<'a> {
         // setup some malicious image size parameters
         builder.push_repeating_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             image_size,
             image_size,
             ImageRendering::Auto,
@@ -720,7 +720,7 @@ impl<'a> RawtestHarness<'a> {
         // setup some malicious image size parameters
         builder.push_repeating_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             image_size,
             image_size,
             ImageRendering::Auto,
@@ -783,7 +783,7 @@ impl<'a> RawtestHarness<'a> {
 
         builder.push_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             ImageRendering::Auto,
             AlphaType::PremultipliedAlpha,
             blob_img.as_image(),
@@ -807,7 +807,7 @@ impl<'a> RawtestHarness<'a> {
         let info = self.make_common_properties(rect(1.0, 60.0, 200.0, 200.0).to_box2d());
         builder.push_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             ImageRendering::Auto,
             AlphaType::PremultipliedAlpha,
             blob_img.as_image(),
@@ -894,7 +894,7 @@ impl<'a> RawtestHarness<'a> {
         let push_images = |builder: &mut DisplayListBuilder| {
             builder.push_image(
                 &info,
-                info.clip_rect,
+                info.bounds,
                 ImageRendering::Auto,
                 AlphaType::PremultipliedAlpha,
                 blob_img.as_image(),
@@ -903,7 +903,7 @@ impl<'a> RawtestHarness<'a> {
             );
             builder.push_image(
                 &info2,
-                info2.clip_rect,
+                info2.bounds,
                 ImageRendering::Auto,
                 AlphaType::PremultipliedAlpha,
                 blob_img2.as_image(),
@@ -997,7 +997,7 @@ impl<'a> RawtestHarness<'a> {
 
         builder.push_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             ImageRendering::Auto,
             AlphaType::PremultipliedAlpha,
             blob_img.as_image(),
@@ -1026,7 +1026,7 @@ impl<'a> RawtestHarness<'a> {
         let info = self.make_common_properties(rect(0.0, 60.0, 200.0, 200.0).to_box2d());
         builder.push_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             ImageRendering::Auto,
             AlphaType::PremultipliedAlpha,
             blob_img.as_image(),
@@ -1053,7 +1053,7 @@ impl<'a> RawtestHarness<'a> {
         let info = self.make_common_properties(rect(0.0, 60.0, 200.0, 200.0).to_box2d());
         builder.push_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             ImageRendering::Auto,
             AlphaType::PremultipliedAlpha,
             blob_img.as_image(),
@@ -1127,14 +1127,14 @@ impl<'a> RawtestHarness<'a> {
                     true,
                 );
                 let info = CommonItemProperties {
-                    clip_rect: rect(110., 110., 50., 2.).to_box2d(),
+                    bounds: rect(110., 110., 50., 2.).to_box2d(),
                     clip_chain_id,
                     spatial_id,
                     flags: PrimitiveFlags::default(),
                 };
                 builder.push_line(
                     &info,
-                    &info.clip_rect,
+                    &info.bounds,
                     0.0, LineOrientation::Horizontal,
                     &ColorF::new(0.0, 0.0, 0.0, 1.0),
                     LineStyle::Solid,
@@ -1206,7 +1206,7 @@ impl<'a> RawtestHarness<'a> {
             let info = self.make_common_properties(rect(110., 110., 50., 2.).to_box2d());
             builder.push_line(
                 &info,
-                &info.clip_rect,
+                &info.bounds,
                 0.0, LineOrientation::Horizontal,
                 &ColorF::new(0.0, 0.0, 0.0, 1.0),
                 LineStyle::Solid,
@@ -1252,7 +1252,7 @@ impl<'a> RawtestHarness<'a> {
         let info = self.make_common_properties(rect(300.0, 70.0, 150.0, 50.0).to_box2d());
         builder.push_image(
             &info,
-            info.clip_rect,
+            info.bounds,
             ImageRendering::Auto,
             AlphaType::PremultipliedAlpha,
             image,
@@ -1319,7 +1319,7 @@ impl<'a> RawtestHarness<'a> {
         );
         builder.push_rect(
             &info,
-            info.clip_rect,
+            info.bounds,
             ColorF::new(0.0, 1.0, 0.0, 1.0),
         );
 
@@ -1483,7 +1483,7 @@ impl<'a> RawtestHarness<'a> {
 
             let background_rect = rect(0.0, 0.0, 400.0, 400.0).to_box2d();
             let background_info = CommonItemProperties {
-                clip_rect: background_rect,
+                bounds: background_rect,
                 clip_chain_id: root_space_and_clip.clip_chain_id,
                 spatial_id: root_space_and_clip.spatial_id,
                 flags: PrimitiveFlags::default(),
@@ -1501,7 +1501,7 @@ impl<'a> RawtestHarness<'a> {
             );
             let line_rect = rect(110.0, 110.0, 50.0, 2.0).to_box2d();
             let line_info = CommonItemProperties {
-                clip_rect: line_rect,
+                bounds: line_rect,
                 clip_chain_id: root_space_and_clip.clip_chain_id,
                 spatial_id: root_space_and_clip.spatial_id,
                 flags: PrimitiveFlags::default(),

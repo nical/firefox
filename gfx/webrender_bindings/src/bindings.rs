@@ -3543,7 +3543,7 @@ fn prim_flags2(
 
 fn common_item_properties_for_rect(
     state: &mut WrState,
-    clip_rect: LayoutRect,
+    bounds: LayoutRect,
     is_backface_visible: bool,
     parent: &WrSpaceAndClipChain,
 ) -> CommonItemProperties {
@@ -3553,7 +3553,7 @@ fn common_item_properties_for_rect(
         // NB: the damp-e10s talos-test will frequently crash on startup if we
         // early-return here for empty rects. I couldn't figure out why, but
         // it's pretty harmless to feed these through, so, uh, we do?
-        clip_rect,
+        bounds,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -3652,7 +3652,7 @@ pub extern "C" fn wr_dp_push_backdrop_filter(
     }
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip_rect.unwrap(),
+        bounds: clip_rect.unwrap(),
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -3732,7 +3732,7 @@ pub extern "C" fn wr_dp_push_image(
     }
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags,
@@ -3777,7 +3777,7 @@ pub extern "C" fn wr_dp_push_repeating_image(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -3824,7 +3824,7 @@ pub extern "C" fn wr_dp_push_yuv_planar_image(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags2(
@@ -3867,7 +3867,7 @@ pub extern "C" fn wr_dp_push_yuv_NV12_image(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags2(
@@ -3910,7 +3910,7 @@ pub extern "C" fn wr_dp_push_yuv_P010_image(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags2(
@@ -3953,7 +3953,7 @@ pub extern "C" fn wr_dp_push_yuv_NV16_image(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags2(
@@ -3996,7 +3996,7 @@ pub extern "C" fn wr_dp_push_yuv_P210_image(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags2(
@@ -4038,7 +4038,7 @@ pub extern "C" fn wr_dp_push_yuv_interleaved_image(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags2(
@@ -4079,7 +4079,7 @@ pub extern "C" fn wr_dp_push_text(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         spatial_id: space_and_clip.spatial_id,
         clip_chain_id: space_and_clip.clip_chain_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -4135,7 +4135,7 @@ pub extern "C" fn wr_dp_push_line(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: *clip,
+        bounds: *clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -4178,7 +4178,7 @@ pub extern "C" fn wr_dp_push_border(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -4225,7 +4225,7 @@ pub extern "C" fn wr_dp_push_border_image(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -4278,7 +4278,7 @@ pub extern "C" fn wr_dp_push_border_gradient(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -4335,7 +4335,7 @@ pub extern "C" fn wr_dp_push_border_radial_gradient(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -4392,7 +4392,7 @@ pub extern "C" fn wr_dp_push_border_conic_gradient(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -4432,7 +4432,7 @@ pub extern "C" fn wr_dp_push_linear_gradient(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -4472,7 +4472,7 @@ pub extern "C" fn wr_dp_push_radial_gradient(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -4512,7 +4512,7 @@ pub extern "C" fn wr_dp_push_conic_gradient(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),
@@ -4545,7 +4545,7 @@ pub extern "C" fn wr_dp_push_box_shadow(
     let space_and_clip = parent.to_webrender(state.pipeline_id);
 
     let prim_info = CommonItemProperties {
-        clip_rect: clip,
+        bounds: clip,
         clip_chain_id: space_and_clip.clip_chain_id,
         spatial_id: space_and_clip.spatial_id,
         flags: prim_flags(is_backface_visible, /* prefer_compositor_surface */ false),

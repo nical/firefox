@@ -119,7 +119,7 @@ impl TestWindow {
         let rect = LayoutRect::from_size(LayoutSize::new(32.0, 32.0));
         builder.push_rect(
             &CommonItemProperties {
-                clip_rect: rect,
+                bounds: rect,
                 clip_chain_id: space_and_clip.clip_chain_id,
                 spatial_id: space_and_clip.spatial_id,
                 flags: PrimitiveFlags::default(),
