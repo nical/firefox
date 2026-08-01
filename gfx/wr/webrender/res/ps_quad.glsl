@@ -87,8 +87,8 @@ struct QuadSegment {
 struct PrimitiveInfo {
     vec2 local_pos;
 
-    RectWithEndpoint local_prim_rect;
-    RectWithEndpoint local_clip_rect;
+    RectWithEndpoint pattern_rect;
+    RectWithEndpoint bounds;
 
     QuadSegment segment;
 
@@ -375,8 +375,8 @@ void antialiasing_vertex(PrimitiveInfo prim) {
     // The "transform bounds" define the edges along which anti-aliasing
     // is applied in the fragment shader.
     RectWithEndpoint xf_bounds = RectWithEndpoint(
-        max(prim.local_prim_rect.p0, prim.local_clip_rect.p0),
-        min(prim.local_prim_rect.p1, prim.local_clip_rect.p1)
+        max(prim.pattern_rect.p0, prim.bounds.p0),
+        min(prim.pattern_rect.p1, prim.bounds.p1)
     );
 
     // In order to prevent the edges with no anti-aliasing from getting
