@@ -110,7 +110,7 @@ impl NormalBorderData {
         // lower resolution and stretches them: the right shape, but blurrier.
         let mut segments: SmallVec<[NormalBorderSegment; 8]> = SmallVec::new();
         crate::border::create_border_segments(
-            desc.local_rect,
+            desc.pattern_rect,
             &self.border,
             &widths,
             &mut |segment| segments.push(segment.clone()),
@@ -127,21 +127,21 @@ impl NormalBorderData {
 
         for segment in &segments {
             let local_clip_rect = match segment.clip_rect {
-                Some(clip_rect) => desc.local_clip_rect
+                Some(clip_rect) => desc.bounds
                     .intersection(&clip_rect)
                     .unwrap_or(LayoutRect::zero()),
-                None => desc.local_clip_rect,
+                None => desc.bounds,
             };
 
             if let Some(color) = &segment.is_solid {
                 quad::prepare_quad(
                     color,
-                    &QuadDescriptor {
-                        local_rect: segment.local_rect,
+                    &QuadDescriptor::new(
+                        segment.local_rect,
                         local_clip_rect,
-                        aligned_aa_edges: desc.aligned_aa_edges & segment.edge_flags,
-                        transformed_aa_edges: desc.transformed_aa_edges & segment.edge_flags,
-                    },
+                        desc.aligned_aa_edges & segment.edge_flags,
+                        desc.transformed_aa_edges & segment.edge_flags,
+                    ),
                     draw_index,
                     &None,
                     clip_chain,
@@ -243,12 +243,12 @@ impl NormalBorderData {
 
             quad::prepare_repeatable_quad(
                 &pattern,
-                &QuadDescriptor {
-                    local_rect: segment_local_rect,
+                &QuadDescriptor::new(
+                    segment_local_rect,
                     local_clip_rect,
-                    aligned_aa_edges: desc.aligned_aa_edges & segment.edge_flags,
-                    transformed_aa_edges: desc.transformed_aa_edges & segment.edge_flags,
-                },
+                    desc.aligned_aa_edges & segment.edge_flags,
+                    desc.transformed_aa_edges & segment.edge_flags,
+                ),
                 stretch_size,
                 spacing,
                 draw_index,

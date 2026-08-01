@@ -57,10 +57,15 @@ pub struct QuadCacheKey {
 /// The geometry and anti-aliasing parameters that most quad primitives need.
 #[derive(Copy, Clone, Debug)]
 pub struct QuadDescriptor {
-    /// The primitive's rect in its local space.
-    pub local_rect: LayoutRect,
-    /// Clips the primitive, in the same local space as `local_rect`.
-    pub local_clip_rect: LayoutRect,
+    /// The primitive's coverage rect in its local space. This is the only rect
+    /// that determines where the primitive covers pixels; it can only shrink
+    /// the primitive, never extend it.
+    pub bounds: LayoutRect,
+    /// The rect that situates the pattern (gradient line, image UV space, box
+    /// shadow geometry, ...) in the same local space as `bounds`. Unconstrained
+    /// relative to `bounds`: it can be larger, smaller or disjoint (see the
+    /// stretch and repeat paths).
+    pub pattern_rect: LayoutRect,
     /// Which edges are anti-aliased if the primitive is axis-aligned.
     ///
     /// Typically no edges for CSS primitives and all edges for SVG primitives:
@@ -71,6 +76,24 @@ pub struct QuadDescriptor {
     ///
     /// Typically all edges, or at least a superset of `aligned_aa_edges`.
     pub transformed_aa_edges: EdgeMask,
+}
+
+impl QuadDescriptor {
+    /// Build a descriptor from the legacy (prim rect, clip rect) pair: the
+    /// prim rect situates the pattern and the two intersected give the bounds.
+    pub fn new(
+        prim_rect: LayoutRect,
+        clip_rect: LayoutRect,
+        aligned_aa_edges: EdgeMask,
+        transformed_aa_edges: EdgeMask,
+    ) -> Self {
+        QuadDescriptor {
+            bounds: prim_rect.intersection_unchecked(&clip_rect),
+            pattern_rect: prim_rect,
+            aligned_aa_edges,
+            transformed_aa_edges,
+        }
+    }
 }
 
 /// Contains some transform-related information that is computed
@@ -218,7 +241,7 @@ pub fn prepare_quad(
 ) {
     let pattern_ctx = PatternBuilderContext {
         spatial_tree: frame_context.spatial_tree,
-        prim_origin: desc.local_rect.min,
+        prim_origin: desc.pattern_rect.min,
     };
 
     let pattern = pattern_builder.build(
@@ -282,7 +305,7 @@ pub fn prepare_repeatable_quad(
 ) {
     let pattern_ctx = PatternBuilderContext {
         spatial_tree: frame_context.spatial_tree,
-        prim_origin: desc.local_rect.min,
+        prim_origin: desc.pattern_rect.min,
     };
 
     let pattern = pattern_builder.build(
@@ -311,8 +334,8 @@ pub fn prepare_repeatable_quad(
         ),
     };
 
-    let needs_repetition = stretch_size.width < desc.local_rect.width()
-        || stretch_size.height < desc.local_rect.height();
+    let needs_repetition = stretch_size.width < desc.pattern_rect.width()
+        || stretch_size.height < desc.pattern_rect.height();
 
     if !needs_repetition {
         // The stretch size may be larger than the local rect's size which
@@ -320,14 +343,15 @@ pub fn prepare_repeatable_quad(
         // the non-repeated quad code paths don't take a stretch_size, so
         // we bake it into the local rect and make sure that the local clip
         // prevents the primitive from overflowing its initial bounds.
-        let stretched_desc = QuadDescriptor {
-            local_rect: LayoutRect::from_origin_and_size(
-                desc.local_rect.min,
+        let stretched_desc = QuadDescriptor::new(
+            LayoutRect::from_origin_and_size(
+                desc.pattern_rect.min,
                 stretch_size,
             ),
-            local_clip_rect: desc.local_clip_rect.intersection_unchecked(&desc.local_rect),
-            ..*desc
-        };
+            desc.bounds,
+            desc.aligned_aa_edges,
+            desc.transformed_aa_edges,
+        );
 
         // Most common path.
         prepare_quad_impl(
@@ -350,7 +374,7 @@ pub fn prepare_repeatable_quad(
     }
 
     let pattern_rect = LayoutRect::from_origin_and_size(
-        desc.local_rect.min,
+        desc.pattern_rect.min,
         stretch_size,
     );
 
@@ -364,7 +388,7 @@ pub fn prepare_repeatable_quad(
 
     // If the number of repetitions is high, we are better off using the repeat shader,
     // but we want to avoid the extra render task if it is large.
-    let num_repetitions = desc.local_rect.area() / stretch_size.area();
+    let num_repetitions = desc.pattern_rect.area() / stretch_size.area();
     let repeat_using_a_shader = src_task_id.is_some()
         || (num_repetitions > 16.0 && surface_rect.width() < 1024.0 && surface_rect.height() < 1024.0)
         || (num_repetitions > 64.0 && surface_rect.area() < 1024.0 * 1024.0);
@@ -454,24 +478,21 @@ pub fn prepare_repeatable_quad(
         frame_state.current_dirty_region().visibility_spatial_node,
         transform.prim_spatial_node_index(),
         frame_context.spatial_tree,
-    ).intersection_unchecked(&desc.local_clip_rect);
+    ).intersection_unchecked(&desc.bounds);
 
     let stride = stretch_size + tile_spacing;
-    let repetitions = crate::image_tiling::repetitions(&desc.local_rect, &visible_rect, stride);
+    let repetitions = crate::image_tiling::repetitions(&desc.pattern_rect, &visible_rect, stride);
     for tile in repetitions {
         let tile_rect = LayoutRect::from_origin_and_size(tile.origin, stretch_size);
         // The last tile of each row/column typically extends past the primitive
-        // rect, so clip against it in addition to the local clip rect. We can't
-        // rely on the local clip rect bounding the primitive: some primitives
-        // (radial gradients, see `optimize_radial_gradient`) shrink their local
-        // rect without shrinking the clip rect.
-        let clip_rect = desc.local_clip_rect
-            .intersection_unchecked(&tile_rect)
-            .intersection_unchecked(&desc.local_rect);
+        // rect, so clip against it. `bounds` already folds in the pattern rect,
+        // which matters for primitives that shrink their pattern rect without
+        // shrinking the clip (radial gradients, see `optimize_radial_gradient`).
+        let clip_rect = desc.bounds.intersection_unchecked(&tile_rect);
         if clip_rect.is_empty() {
             continue;
         }
-        let pattern_offset = tile.origin - desc.local_rect.min;
+        let pattern_offset = tile.origin - desc.pattern_rect.min;
         let pattern = pattern_builder.build(
             None,
             pattern_offset,
@@ -485,12 +506,12 @@ pub fn prepare_repeatable_quad(
         prepare_quad_impl(
             strategy,
             &pattern,
-            &QuadDescriptor {
-                local_rect: tile_rect,
-                local_clip_rect: clip_rect,
-                aligned_aa_edges: desc.aligned_aa_edges & tile.edge_flags,
-                transformed_aa_edges: desc.transformed_aa_edges & tile.edge_flags,
-            },
+            &QuadDescriptor::new(
+                tile_rect,
+                clip_rect,
+                desc.aligned_aa_edges & tile.edge_flags,
+                desc.transformed_aa_edges & tile.edge_flags,
+            ),
             draw_index,
             // Bug 2017832 - Caching breaks manually repeated patterns
             // with SWGL for some reason.
@@ -526,7 +547,7 @@ pub fn prepare_border_nine_patch(
 ) {
     let pattern_ctx = PatternBuilderContext {
         spatial_tree: frame_context.spatial_tree,
-        prim_origin: desc.local_rect.min,
+        prim_origin: desc.pattern_rect.min,
     };
 
     let pattern = pattern_builder.build(
@@ -553,12 +574,20 @@ pub fn prepare_border_nine_patch(
     let scales = transform.scale_factors();
     let base_indirect_transform = ScaleOffset::from_scale(scales.into());
 
-    nine_patch.for_each_segment(&desc.local_rect, &mut|dst_rect, src_rect, side, _repeat_h, _repeat_v| {
+    nine_patch.for_each_segment(&desc.pattern_rect, &mut|dst_rect, src_rect, side, _repeat_h, _repeat_v| {
+        // Segments are carved out of the pattern rect, so folding the pattern
+        // rect into each segment's bounds (via `desc.bounds`) is a no-op.
+        debug_assert!(
+            desc.pattern_rect.contains_box(dst_rect) || dst_rect.is_empty(),
+            "nine-patch segment {:?} escapes the pattern rect {:?}",
+            dst_rect, desc.pattern_rect,
+        );
+
         // First find the sub-rect of the source pattern that this segment is using.
-        let min_x = desc.local_rect.min.x + stretch_size.width * src_rect.uv0.x;
-        let min_y = desc.local_rect.min.y + stretch_size.height * src_rect.uv0.y;
-        let max_x = desc.local_rect.min.x + stretch_size.width * src_rect.uv1.x;
-        let max_y = desc.local_rect.min.y + stretch_size.height * src_rect.uv1.y;
+        let min_x = desc.pattern_rect.min.x + stretch_size.width * src_rect.uv0.x;
+        let min_y = desc.pattern_rect.min.y + stretch_size.height * src_rect.uv0.y;
+        let max_x = desc.pattern_rect.min.x + stretch_size.width * src_rect.uv1.x;
+        let max_y = desc.pattern_rect.min.y + stretch_size.height * src_rect.uv1.y;
         let pattern_rect = LayoutRect {
             min: point2(min_x, min_y),
             max: point2(max_x, max_y),
@@ -610,12 +639,12 @@ pub fn prepare_border_nine_patch(
         prepare_quad_impl(
             strategy,
             &img_pattern,
-            &QuadDescriptor {
-                local_rect: *dst_rect,
-                local_clip_rect: desc.local_clip_rect,
-                aligned_aa_edges: desc.aligned_aa_edges & side,
-                transformed_aa_edges: desc.transformed_aa_edges & side,
-            },
+            &QuadDescriptor::new(
+                *dst_rect,
+                desc.bounds,
+                desc.aligned_aa_edges & side,
+                desc.transformed_aa_edges & side,
+            ),
             draw_index,
             &None,
             clip_chain,
@@ -671,7 +700,7 @@ fn prepare_quad_impl(
     let mut quad_flags = QuadFlags::empty();
 
     // Only use AA edge instances if the primitive is large enough to require it
-    let prim_size = desc.local_rect.size();
+    let prim_size = desc.pattern_rect.size();
     if prim_size.width > MIN_AA_SEGMENTS_SIZE && prim_size.height > MIN_AA_SEGMENTS_SIZE {
         quad_flags |= QuadFlags::USE_AA_SEGMENTS;
     }
@@ -687,10 +716,11 @@ fn prepare_quad_impl(
         desc.transformed_aa_edges
     };
 
-    let local_bounds = desc.local_clip_rect
-        .intersection_unchecked(&desc.local_rect)
+    // `desc.bounds` already folds in the pattern rect; all that is left is the
+    // clip chain's accumulated axis-aligned clip.
+    let local_bounds = desc.bounds
         .intersection_unchecked(&clip_chain.local_clip_rect);
-    let local_pattern_rect = desc.local_rect;
+    let local_pattern_rect = desc.pattern_rect;
 
     // We round the coordinates of non-antialiased edges of the primitive.
     // This allows us to ensure that indirect axis-aligned primitives cover the render

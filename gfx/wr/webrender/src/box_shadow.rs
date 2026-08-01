@@ -500,12 +500,12 @@ pub fn prepare_box_shadow(
 
     quad::prepare_quad(
         &pattern,
-        &QuadDescriptor {
-            local_rect: prim_rect,
-            local_clip_rect: clip_chain.local_clip_rect,
-            aligned_aa_edges: common_data.aligned_aa_edges,
-            transformed_aa_edges: common_data.transformed_aa_edges,
-        },
+        &QuadDescriptor::new(
+            prim_rect,
+            clip_chain.local_clip_rect,
+            common_data.aligned_aa_edges,
+            common_data.transformed_aa_edges,
+        ),
         draw_index,
         &None,
         clip_chain,

@@ -252,12 +252,12 @@ pub fn prepare_image_quads(
 
             quad::prepare_repeatable_quad(
                 &image_pattern,
-                &QuadDescriptor {
+                &QuadDescriptor::new(
                     local_rect,
-                    local_clip_rect: tight_clip_rect,
-                    aligned_aa_edges: common_data.aligned_aa_edges,
-                    transformed_aa_edges: common_data.transformed_aa_edges,
-                },
+                    tight_clip_rect,
+                    common_data.aligned_aa_edges,
+                    common_data.transformed_aa_edges,
+                ),
                 stretch_size,
                 image_data.tile_spacing,
                 draw_index,
@@ -336,12 +336,12 @@ pub fn prepare_image_quads(
 
                     quad::prepare_quad(
                         &image_pattern,
-                        &QuadDescriptor {
-                            local_rect: tile.rect,
-                            local_clip_rect: tight_clip_rect,
+                        &QuadDescriptor::new(
+                            tile.rect,
+                            tight_clip_rect,
                             aligned_aa_edges,
                             transformed_aa_edges,
-                        },
+                        ),
                         draw_index,
                         &None,
                         clip_chain,
