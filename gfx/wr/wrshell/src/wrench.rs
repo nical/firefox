@@ -383,8 +383,8 @@ impl YamlWriter {
                         self.push_level();
                         self.write_spatial_id(info.space_and_clip.spatial_id);
                         self.write_clip_chain_id(info.space_and_clip.clip_chain_id);
-                        self.write_bounds(info.bounds);
-                        self.maybe_write_clip_rect(info.bounds, info.clip_rect);
+                        self.write_bounds(info.pattern_rect);
+                        self.maybe_write_clip_rect(info.pattern_rect, info.clip_rect);
                         self.write_line(&format!("id: [{}, {}]",
                             info.pipeline_id.0,
                             info.pipeline_id.1,
@@ -396,8 +396,8 @@ impl YamlWriter {
                         self.push_level();
                         self.write_spatial_id(info.common.spatial_id);
                         self.write_clip_chain_id(info.common.clip_chain_id);
-                        self.write_bounds(info.bounds);
-                        self.maybe_write_clip_rect(info.bounds, info.common.bounds);
+                        self.write_bounds(info.pattern_rect);
+                        self.maybe_write_clip_rect(info.pattern_rect, info.common.bounds);
                         let color = match info.color {
                             PropertyBinding::Binding(..) => {
                                 println!("WARN: Property color bindings are unsupported");
@@ -417,8 +417,8 @@ impl YamlWriter {
                         self.push_level();
                         self.write_spatial_id(info.common.spatial_id);
                         self.write_clip_chain_id(info.common.clip_chain_id);
-                        self.write_bounds(info.bounds);
-                        self.maybe_write_clip_rect(info.bounds, info.common.bounds);
+                        self.write_bounds(info.pattern_rect);
+                        self.maybe_write_clip_rect(info.pattern_rect, info.common.bounds);
                         self.write_color(ColorF::new(1.0, 0.0, 0.0, 0.5));
                         self.pop_level();
                     }
@@ -429,8 +429,8 @@ impl YamlWriter {
                         self.push_level();
                         self.write_spatial_id(info.common.spatial_id);
                         self.write_clip_chain_id(info.common.clip_chain_id);
-                        self.maybe_write_clip_rect(info.bounds, info.common.bounds);
-                        self.write_bounds(info.bounds);
+                        self.maybe_write_clip_rect(info.pattern_rect, info.common.bounds);
+                        self.write_bounds(info.pattern_rect);
 
                         match info.details {
                             BorderDetails::Normal(border) => {
@@ -529,12 +529,12 @@ impl YamlWriter {
                         self.push_level();
                         self.write_spatial_id(info.common.spatial_id);
                         self.write_clip_chain_id(info.common.clip_chain_id);
-                        self.write_bounds(info.bounds);
-                        self.maybe_write_clip_rect(info.bounds, info.common.bounds);
+                        self.write_bounds(info.pattern_rect);
+                        self.maybe_write_clip_rect(info.pattern_rect, info.common.bounds);
                         self.write_line(
                             &format!("src: checkerboard(2,8,8,{},{})",
-                                ((info.bounds.width() - 2.0) / 8.0).ceil() as i32,
-                                ((info.bounds.height() - 2.0) / 8.0).ceil() as i32,
+                                ((info.pattern_rect.width() - 2.0) / 8.0).ceil() as i32,
+                                ((info.pattern_rect.height() - 2.0) / 8.0).ceil() as i32,
                             ),
                         );
                         self.pop_level();

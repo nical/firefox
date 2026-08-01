@@ -1198,7 +1198,7 @@ impl DisplayListBuilder {
         let item = di::DisplayItem::Rectangle(di::RectangleDisplayItem {
             common,
             color: PropertyBinding::Value(color),
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
         });
         self.push_item(&item);
     }
@@ -1213,7 +1213,7 @@ impl DisplayListBuilder {
         let item = di::DisplayItem::Rectangle(di::RectangleDisplayItem {
             common,
             color,
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
         });
         self.push_item(&item);
     }
@@ -1273,7 +1273,7 @@ impl DisplayListBuilder {
         let (common, offset) = self.normalize_common(common);
         let item = di::DisplayItem::Image(di::ImageDisplayItem {
             common,
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
             image_key: key,
             image_rendering,
             alpha_type,
@@ -1298,7 +1298,7 @@ impl DisplayListBuilder {
         let (common, offset) = self.normalize_common(common);
         let item = di::DisplayItem::RepeatingImage(di::RepeatingImageDisplayItem {
             common,
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
             image_key: key,
             stretch_size,
             tile_spacing,
@@ -1324,7 +1324,7 @@ impl DisplayListBuilder {
         let (common, offset) = self.normalize_common(common);
         let item = di::DisplayItem::YuvImage(di::YuvImageDisplayItem {
             common,
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
             yuv_data,
             color_depth,
             color_space,
@@ -1346,7 +1346,7 @@ impl DisplayListBuilder {
         let (common, offset) = self.normalize_common(common);
         let item = di::DisplayItem::Text(di::TextDisplayItem {
             common,
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
             color,
             font_key,
             glyph_options,
@@ -1434,7 +1434,7 @@ impl DisplayListBuilder {
         let (common, offset) = self.normalize_common(common);
         let item = di::DisplayItem::Border(di::BorderDisplayItem {
             common,
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
             details,
             widths,
         });
@@ -1639,7 +1639,7 @@ impl DisplayListBuilder {
         let (common, offset) = self.normalize_common(common);
         let item = di::DisplayItem::Gradient(di::GradientDisplayItem {
             common,
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
             gradient,
             tile_size,
             tile_spacing,
@@ -1662,7 +1662,7 @@ impl DisplayListBuilder {
         let (common, offset) = self.normalize_common(common);
         let item = di::DisplayItem::RadialGradient(di::RadialGradientDisplayItem {
             common,
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
             gradient,
             tile_size,
             tile_spacing,
@@ -1685,7 +1685,7 @@ impl DisplayListBuilder {
         let (common, offset) = self.normalize_common(common);
         let item = di::DisplayItem::ConicGradient(di::ConicGradientDisplayItem {
             common,
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
             gradient,
             tile_size,
             tile_spacing,
@@ -2159,7 +2159,7 @@ impl DisplayListBuilder {
     ) {
         let offset = self.accumulated_scroll_offset(space_and_clip.spatial_id);
         let item = di::DisplayItem::Iframe(di::IframeDisplayItem {
-            bounds: bounds.translate(offset),
+            pattern_rect: bounds.translate(offset),
             clip_rect: clip_rect.translate(offset),
             space_and_clip: *space_and_clip,
             pipeline_id,
@@ -2367,19 +2367,19 @@ impl DisplayListBuilder {
         Some(match item {
             Rectangle(info) => Rectangle(di::RectangleDisplayItem {
                 common: shift(info.common),
-                bounds: info.bounds.translate(offset),
+                pattern_rect: info.pattern_rect.translate(offset),
                 color: PropertyBinding::Value(color),
             }),
             Text(info) => Text(di::TextDisplayItem {
                 common: shift(info.common),
-                bounds: info.bounds.translate(offset),
+                pattern_rect: info.pattern_rect.translate(offset),
                 color,
                 shadow: shadow_mode,
                 ..*info
             }),
             Image(info) => Image(di::ImageDisplayItem {
                 common: shift(info.common),
-                bounds: info.bounds.translate(offset),
+                pattern_rect: info.pattern_rect.translate(offset),
                 color,
                 ..*info
             }),
@@ -2399,7 +2399,7 @@ impl DisplayListBuilder {
                 };
                 Border(di::BorderDisplayItem {
                     common: shift(info.common),
-                    bounds: info.bounds.translate(offset),
+                    pattern_rect: info.pattern_rect.translate(offset),
                     details,
                     ..*info
                 })

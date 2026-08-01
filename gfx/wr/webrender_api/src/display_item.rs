@@ -320,7 +320,7 @@ pub struct ScrollFrameDescriptor {
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct RectangleDisplayItem {
     pub common: CommonItemProperties,
-    pub bounds: LayoutRect,
+    pub pattern_rect: LayoutRect,
     pub color: PropertyBinding<ColorF>,
 }
 
@@ -398,11 +398,11 @@ pub struct TextDisplayItem {
     /// The area all the glyphs should be found in. Strictly speaking this isn't
     /// necessarily needed, but layout engines should already "know" this, and we
     /// use it cull and size things quickly before glyph layout is done. Currently
-    /// the glyphs *can* be outside these bounds, but that should imply they
+    /// the glyphs *can* be outside this rect, but that should imply they
     /// can be cut off.
     // FIXME: these are currently sometimes ignored to keep some old wrench tests
     // working, but we should really just fix the tests!
-    pub bounds: LayoutRect,
+    pub pattern_rect: LayoutRect,
     pub font_key: font::FontInstanceKey,
     pub color: ColorF,
     pub glyph_options: Option<font::GlyphOptions>,
@@ -552,7 +552,7 @@ pub enum BorderDetails {
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct BorderDisplayItem {
     pub common: CommonItemProperties,
-    pub bounds: LayoutRect,
+    pub pattern_rect: LayoutRect,
     pub widths: LayoutSideOffsets,
     pub details: BorderDetails,
 }
@@ -689,8 +689,8 @@ pub struct GradientDisplayItem {
     /// The area to tile the gradient over (first tile starts at origin of this rect)
     // FIXME: this should ideally just be `tile_origin` here, with common.bounds
     // defining the bounds of the item. Needs non-trivial backend changes.
-    pub bounds: LayoutRect,
-    /// How big a tile of the of the gradient should be (common case: bounds.size)
+    pub pattern_rect: LayoutRect,
+    /// How big a tile of the of the gradient should be (common case: pattern_rect.size)
     pub tile_size: LayoutSize,
     /// The space between tiles of the gradient (common case: 0)
     pub tile_spacing: LayoutSize,
@@ -754,7 +754,7 @@ pub struct RadialGradientDisplayItem {
     /// The area to tile the gradient over (first tile starts at origin of this rect)
     // FIXME: this should ideally just be `tile_origin` here, with common.bounds
     // defining the bounds of the item. Needs non-trivial backend changes.
-    pub bounds: LayoutRect,
+    pub pattern_rect: LayoutRect,
     pub gradient: RadialGradient,
     pub tile_size: LayoutSize,
     pub tile_spacing: LayoutSize,
@@ -766,7 +766,7 @@ pub struct ConicGradientDisplayItem {
     /// The area to tile the gradient over (first tile starts at origin of this rect)
     // FIXME: this should ideally just be `tile_origin` here, with common.bounds
     // defining the bounds of the item. Needs non-trivial backend changes.
-    pub bounds: LayoutRect,
+    pub pattern_rect: LayoutRect,
     pub gradient: ConicGradient,
     pub tile_size: LayoutSize,
     pub tile_spacing: LayoutSize,
@@ -1915,7 +1915,7 @@ impl FilterData {
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct IframeDisplayItem {
-    pub bounds: LayoutRect,
+    pub pattern_rect: LayoutRect,
     pub clip_rect: LayoutRect,
     pub space_and_clip: SpaceAndClipInfo,
     pub pipeline_id: PipelineId,
@@ -1932,14 +1932,14 @@ pub struct ImageDisplayItem {
     /// The area to tile the image over (first tile starts at origin of this rect)
     // FIXME: this should ideally just be `tile_origin` here, with common.bounds
     // defining the bounds of the item. Needs non-trivial backend changes.
-    pub bounds: LayoutRect,
+    pub pattern_rect: LayoutRect,
     pub image_key: ImageKey,
     pub image_rendering: ImageRendering,
     pub alpha_type: AlphaType,
     /// A hack used by gecko to color a simple bitmap font used for tofu glyphs
     pub color: ColorF,
     /// Restricts sampling to this sub-rect of the image, in image pixels, so
-    /// that filtering cannot pull in texels outside it. `bounds` maps to this
+    /// that filtering cannot pull in texels outside it. `pattern_rect` maps to this
     /// sub-rect rather than to the whole image. Used for CSS sprite sheets,
     /// where the neighbouring cells must not bleed into the visible one.
     pub sub_rect: Option<DeviceIntRect>,
@@ -1953,8 +1953,8 @@ pub struct RepeatingImageDisplayItem {
     /// The area to tile the image over (first tile starts at origin of this rect)
     // FIXME: this should ideally just be `tile_origin` here, with common.bounds
     // defining the bounds of the item. Needs non-trivial backend changes.
-    pub bounds: LayoutRect,
-    /// How large to make a single tile of the image (common case: bounds.size)
+    pub pattern_rect: LayoutRect,
+    /// How large to make a single tile of the image (common case: pattern_rect.size)
     pub stretch_size: LayoutSize,
     /// The space between tiles (common case: 0)
     pub tile_spacing: LayoutSize,
@@ -1982,7 +1982,7 @@ pub enum AlphaType {
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct YuvImageDisplayItem {
     pub common: CommonItemProperties,
-    pub bounds: LayoutRect,
+    pub pattern_rect: LayoutRect,
     pub yuv_data: YuvData,
     pub color_depth: ColorDepth,
     pub color_space: YuvColorSpace,

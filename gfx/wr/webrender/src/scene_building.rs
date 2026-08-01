@@ -1184,7 +1184,7 @@ impl<'a> SceneBuilder<'a> {
 
         self.id_to_index_mapper_stack.push(NodeIdToIndexMapper::default());
 
-        let bounds = info.bounds;
+        let bounds = info.pattern_rect;
 
         // The iframe's reference-frame origin is snapped to the device pixel
         // grid at frame time (`SpatialNode::update`, gated on `should_snap`),
@@ -1318,7 +1318,7 @@ impl<'a> SceneBuilder<'a> {
 
                 let (layout, _, spatial_node_index, clip_node_id) = self.process_common_properties_with_bounds(
                     &info.common,
-                    info.bounds,
+                    info.pattern_rect,
                 );
 
                 self.add_image(
@@ -1339,7 +1339,7 @@ impl<'a> SceneBuilder<'a> {
 
                 let (layout, unsnapped_rect, spatial_node_index, clip_node_id) = self.process_common_properties_with_bounds(
                     &info.common,
-                    info.bounds,
+                    info.pattern_rect,
                 );
 
                 let stretch_size = process_image_stretch_size(
@@ -1365,7 +1365,7 @@ impl<'a> SceneBuilder<'a> {
 
                 let (layout, _, spatial_node_index, clip_node_id) = self.process_common_properties_with_bounds(
                     &info.common,
-                    info.bounds,
+                    info.pattern_rect,
                 );
 
                 self.add_yuv_image(
@@ -1390,7 +1390,7 @@ impl<'a> SceneBuilder<'a> {
                 // error throughout the layers). We should fix this at some point.
                 let (layout, _, spatial_node_index, clip_node_id) = self.process_common_properties_with_bounds(
                     &info.common,
-                    info.bounds,
+                    info.pattern_rect,
                 );
 
                 self.add_text(
@@ -1409,7 +1409,7 @@ impl<'a> SceneBuilder<'a> {
 
                 let (layout, _, spatial_node_index, clip_node_id) = self.process_common_properties_with_bounds(
                     &info.common,
-                    info.bounds,
+                    info.pattern_rect,
                 );
 
                 self.add_primitive(
@@ -1490,7 +1490,7 @@ impl<'a> SceneBuilder<'a> {
 
                 let (mut layout, unsnapped_rect, spatial_node_index, clip_node_id) = self.process_common_properties_with_bounds(
                     &info.common,
-                    info.bounds,
+                    info.pattern_rect,
                 );
 
                 let mut tile_size = process_repeat_size(
@@ -1545,7 +1545,7 @@ impl<'a> SceneBuilder<'a> {
 
                 let (mut layout, unsnapped_rect, spatial_node_index, clip_node_id) = self.process_common_properties_with_bounds(
                     &info.common,
-                    info.bounds,
+                    info.pattern_rect,
                 );
 
                 let mut center = info.gradient.center;
@@ -1628,7 +1628,7 @@ impl<'a> SceneBuilder<'a> {
 
                 let (mut layout, unsnapped_rect, spatial_node_index, clip_node_id) = self.process_common_properties_with_bounds(
                     &info.common,
-                    info.bounds,
+                    info.pattern_rect,
                 );
 
                 let tile_size = process_repeat_size(
@@ -1693,7 +1693,7 @@ impl<'a> SceneBuilder<'a> {
 
                 let (layout, _, spatial_node_index, clip_node_id) = self.process_common_properties_with_bounds(
                     &info.common,
-                    info.bounds,
+                    info.pattern_rect,
                 );
 
                 self.add_border(
