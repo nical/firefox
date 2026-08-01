@@ -975,7 +975,7 @@ impl BatchBuilder {
 
                 let glyph_keys = &ctx.scratch.frame.glyph_keys[run_scratch.glyph_keys_range];
 
-                // `local_rect.p0` is the run anchor (the normalized prim rect
+                // `pattern_rect.p0` is the run anchor (the normalized prim rect
                 // origin). In device mode the shader transforms it to device
                 // space and adds the per-glyph device offsets stored at
                 // `gpu_address`. `user_data` carries the raster scale (for
@@ -987,7 +987,7 @@ impl BatchBuilder {
                     // the run anchor, and glyph ink routinely extends past the
                     // authored rect. Do not fold the prim rect into `bounds` -
                     // that would start clipping glyphs by it.
-                    pattern_rect: run_scratch.local_rect,
+                    pattern_rect: run_scratch.pattern_rect,
                     bounds: prim_info.clip_chain.local_clip_rect,
                     transform_id,
                     z: z_id,
@@ -1071,7 +1071,7 @@ impl BatchBuilder {
                         // glyphs; the other branch covers device-mode axis-aligned and
                         // local-raster mode (distinguished by `run_scratch.raster_scale`).
                         // `text_offset` is zero because glyph positions are stored absolutely
-                        // (relative to the prim origin via `local_rect.min`), not relative to
+                        // (relative to the prim origin via `pattern_rect.min`), not relative to
                         // a separate snapped reference-frame offset; the TRANSFORM_GLYPHS
                         // branch's `raster_text_offset` then reduces to the reference-frame
                         // device snap that `request_resources` applies.
