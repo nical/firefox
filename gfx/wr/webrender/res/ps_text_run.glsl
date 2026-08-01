@@ -99,12 +99,12 @@ void main() {
         res.uv_rect.z = res.uv_rect.x + quarter_width;
     }
 
-    // Device-space position of the run anchor (`ph.local_rect.p0`, the prim
+    // Device-space position of the run anchor (`ph.pattern_rect.p0`, the prim
     // rect origin), via the same prim -> raster transform + device pixel scale
     // the rest of the pipeline uses. The CPU computed the per-glyph offsets
     // relative to this exact value, so the absolute device positions
     // reconstruct here.
-    vec2 device_anchor = (transform.m * vec4(ph.local_rect.p0, 0.0, 1.0)).xy * task.device_pixel_scale;
+    vec2 device_anchor = (transform.m * vec4(ph.pattern_rect.p0, 0.0, 1.0)).xy * task.device_pixel_scale;
 
     float inv_dps = 1.0 / task.device_pixel_scale;
 
@@ -130,12 +130,12 @@ void main() {
     RectWithEndpoint local_aabb = RectWithEndpoint(min(min(c0, c1), min(c2, c3)), max(max(c0, c1), max(c2, c3)));
 
     vec2 local_pos = mix(local_aabb.p0, local_aabb.p1, aPosition.xy);
-    if (rect_inside_rect(local_aabb, ph.local_clip_rect)) {
+    if (rect_inside_rect(local_aabb, ph.bounds)) {
         vec2 device_corner = mix(device_origin, device_origin + device_size, aPosition.xy);
         local_pos = (transform.inv_m * vec4(device_corner * inv_dps, 0.0, 1.0)).xy;
     }
 
-    vi = write_vertex(local_pos, ph.local_clip_rect, ph.z, transform, task);
+    vi = write_vertex(local_pos, ph.bounds, ph.z, transform, task);
 
     // UV fraction within the glyph rect, in device space from the (possibly
     // clip-clamped) vertex, so clipping is handled correctly for rotated glyphs.
@@ -152,7 +152,7 @@ void main() {
         vec2 device_corner = mix(device_origin, device_origin + device_size, aPosition.xy);
         vec2 local_pos = (transform.inv_m * vec4(device_corner * inv_dps, 0.0, 1.0)).xy;
 
-        vi = write_vertex(local_pos, ph.local_clip_rect, ph.z, transform, task);
+        vi = write_vertex(local_pos, ph.bounds, ph.z, transform, task);
 
         vec2 device_clamped = (transform.m * vec4(vi.local_pos, 0.0, 1.0)).xy * task.device_pixel_scale;
         f = (device_clamped - device_origin) / device_size;
@@ -175,7 +175,7 @@ void main() {
         );
         vec2 local_pos = mix(glyph_rect.p0, glyph_rect.p1, aPosition.xy);
 
-        vi = write_vertex(local_pos, ph.local_clip_rect, ph.z, transform, task);
+        vi = write_vertex(local_pos, ph.bounds, ph.z, transform, task);
 
         f = (vi.local_pos - glyph_rect.p0) / rect_size(glyph_rect);
     }
