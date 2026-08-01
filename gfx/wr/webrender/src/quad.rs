@@ -1531,15 +1531,15 @@ fn get_prim_render_strategy(
 /// maximum size.
 /// Also ensure that near-zero size tasks do are at least
 fn adjust_indirect_pattern_resolution(
-    local_rect: &LayoutRect,
+    pattern_rect: &LayoutRect,
     max_device_size: f32,
     device_rect: &mut DeviceRect,
     indirect_transform: &mut ScaleOffset,
 ) {
     // This catches invalid cases such as NaNs or zeroes that would have caused us
     // to loop forever.
-    let valid = local_rect.width() > 0.0
-        && local_rect.height() > 0.0
+    let valid = pattern_rect.width() > 0.0
+        && pattern_rect.height() > 0.0
         && indirect_transform.scale.x != 0.0
         && indirect_transform.scale.y != 0.0;
 
@@ -1550,21 +1550,21 @@ fn adjust_indirect_pattern_resolution(
     // Down-scale until the render task fits in the provided maximum size.
     while device_rect.width() > max_device_size {
         indirect_transform.scale.x *= 0.5;
-        *device_rect = indirect_transform.map_rect(local_rect);
+        *device_rect = indirect_transform.map_rect(pattern_rect);
     }
     while device_rect.height() > max_device_size {
         indirect_transform.scale.y *= 0.5;
-        *device_rect = indirect_transform.map_rect(local_rect);
+        *device_rect = indirect_transform.map_rect(pattern_rect);
     }
 
     // Up-scale until the render task size rounds to at least one pixel.
     while device_rect.width() <= 0.5 {
         indirect_transform.scale.x *= 2.0;
-        *device_rect = indirect_transform.map_rect(local_rect);
+        *device_rect = indirect_transform.map_rect(pattern_rect);
     }
     while device_rect.height() <= 0.5 {
         indirect_transform.scale.y *= 2.0;
-        *device_rect = indirect_transform.map_rect(local_rect);
+        *device_rect = indirect_transform.map_rect(pattern_rect);
     }
 }
 
