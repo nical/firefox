@@ -338,11 +338,14 @@ pub fn prepare_repeatable_quad(
         || stretch_size.height < desc.pattern_rect.height();
 
     if !needs_repetition {
-        // The stretch size may be larger than the local rect's size which
-        // should result in some stretching (without repetitions). However,
-        // the non-repeated quad code paths don't take a stretch_size, so
-        // we bake it into the local rect and make sure that the local clip
-        // prevents the primitive from overflowing its initial bounds.
+        // The stretch size may be larger than the pattern rect's size, which
+        // should result in some stretching (without repetitions). The
+        // non-repeated quad code paths don't take a stretch_size, so bake it
+        // into the pattern rect. Without repetitions the stretched pattern rect
+        // covers the whole prim rect, so intersecting it into the bounds is a
+        // no-op geometrically, but it also sanitizes NaN coordinates coming
+        // from the display list (see reftests/gradient/linear-nan.yaml), so
+        // keep going through `QuadDescriptor::new`.
         let stretched_desc = QuadDescriptor::new(
             LayoutRect::from_origin_and_size(
                 desc.pattern_rect.min,
