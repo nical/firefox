@@ -1283,8 +1283,8 @@ impl<'a> SceneBuilder<'a> {
         );
 
         let layout = LayoutPrimitiveInfo {
-            rect: prim_rect,
-            clip_rect,
+            pattern_rect: prim_rect,
+            bounds: clip_rect,
             flags: common.flags,
             // TODO: for CSS primitives axis-aligned edges should not get anti-aliased whereas
             // for SVG primitives, they should. WebRender currently does not apply anti-aliasing
@@ -1433,8 +1433,8 @@ impl<'a> SceneBuilder<'a> {
                 let rect = info.rect;
 
                 let layout = LayoutPrimitiveInfo {
-                    rect,
-                    clip_rect: rect,
+                    pattern_rect: rect,
+                    bounds: rect,
                     flags: info.flags,
                     aligned_aa_edges: EdgeMask::empty(),
                     transformed_aa_edges: EdgeMask::empty(),
@@ -1494,7 +1494,7 @@ impl<'a> SceneBuilder<'a> {
                 );
 
                 let mut tile_size = process_repeat_size(
-                    &layout.rect,
+                    &layout.pattern_rect,
                     &unsnapped_rect,
                     info.tile_size,
                 );
@@ -1507,10 +1507,10 @@ impl<'a> SceneBuilder<'a> {
                 // prepare time so segments tile against the snapped prim_rect
                 // (see `decompose_axis_aligned_gradient`).
                 optimize_linear_gradient(
-                    &mut layout.rect,
+                    &mut layout.pattern_rect,
                     &mut tile_size,
                     info.tile_spacing,
-                    &layout.clip_rect,
+                    &layout.bounds,
                     &mut start,
                     &mut end,
                 );
@@ -1553,12 +1553,12 @@ impl<'a> SceneBuilder<'a> {
                 let stops = read_gradient_stops(item.gradient_stops());
 
                 let mut tile_size = process_repeat_size(
-                    &layout.rect,
+                    &layout.pattern_rect,
                     &unsnapped_rect,
                     info.tile_size,
                 );
 
-                let mut prim_rect = layout.rect;
+                let mut prim_rect = layout.pattern_rect;
                 let mut tile_spacing = info.tile_spacing;
                 let mut aa_mask = EdgeMask::all();
                 optimize_radial_gradient(
@@ -1567,7 +1567,7 @@ impl<'a> SceneBuilder<'a> {
                     &mut center,
                     &mut tile_spacing,
                     &mut aa_mask,
-                    &layout.clip_rect,
+                    &layout.bounds,
                     info.gradient.radius,
                     info.gradient.end_offset,
                     info.gradient.extend_mode,
@@ -1577,7 +1577,7 @@ impl<'a> SceneBuilder<'a> {
                             spatial_node_index,
                             clip_node_id,
                             &LayoutPrimitiveInfo {
-                                rect: *solid_rect,
+                                pattern_rect: *solid_rect,
                                 aligned_aa_edges: layout.aligned_aa_edges & aa_mask,
                                 transformed_aa_edges: layout.transformed_aa_edges & aa_mask,
                                 .. layout
@@ -1597,7 +1597,7 @@ impl<'a> SceneBuilder<'a> {
                 simplify_repeated_primitive(&tile_size, &mut tile_spacing, &mut prim_rect);
 
                 if !tile_size.ceil().is_empty() {
-                    layout.rect = prim_rect;
+                    layout.pattern_rect = prim_rect;
                     let prim_key_kind = self.create_radial_gradient_prim(
                         &layout,
                         center,
@@ -1632,16 +1632,16 @@ impl<'a> SceneBuilder<'a> {
                 );
 
                 let tile_size = process_repeat_size(
-                    &layout.rect,
+                    &layout.pattern_rect,
                     &unsnapped_rect,
                     info.tile_size,
                 );
 
                 let offset = apply_gradient_local_clip(
-                    &mut layout.rect,
+                    &mut layout.pattern_rect,
                     &tile_size,
                     &info.tile_spacing,
-                    &layout.clip_rect,
+                    &layout.bounds,
                 );
                 let center = info.gradient.center + offset;
 
@@ -1813,7 +1813,7 @@ impl<'a> SceneBuilder<'a> {
         PrimitiveInstance::new(
             instance_kind,
             clip_leaf_id,
-            info.rect,
+            info.pattern_rect,
         )
     }
 
@@ -1923,7 +1923,7 @@ impl<'a> SceneBuilder<'a> {
         );
         self.add_primitive_to_draw_list(
             prim_instance,
-            info.rect,
+            info.pattern_rect,
             spatial_node_index,
             info.flags,
         );
@@ -2914,7 +2914,7 @@ impl<'a> SceneBuilder<'a> {
         nine_patch: Option<Box<NinePatchDescriptor>>,
         edge_aa_mask: EdgeMask,
     ) -> Option<LinearGradient> {
-        let mut prim_rect = info.rect;
+        let mut prim_rect = info.pattern_rect;
         simplify_repeated_primitive(&stretch_size, &mut tile_spacing, &mut prim_rect);
 
         let mut is_entirely_transparent = true;
@@ -2948,7 +2948,7 @@ impl<'a> SceneBuilder<'a> {
             (start_point, end_point)
         };
 
-        let stretch_ratio = compute_stretch_ratio(stretch_size, info.rect.size());
+        let stretch_ratio = compute_stretch_ratio(stretch_size, info.pattern_rect.size());
 
         Some(LinearGradient {
             extend_mode,
@@ -2976,7 +2976,7 @@ impl<'a> SceneBuilder<'a> {
         mut tile_spacing: LayoutSize,
         nine_patch: Option<Box<NinePatchDescriptor>>,
     ) -> RadialGradient {
-        let mut prim_rect = info.rect;
+        let mut prim_rect = info.pattern_rect;
         simplify_repeated_primitive(&stretch_size, &mut tile_spacing, &mut prim_rect);
 
         let params = RadialGradientParams {
@@ -2985,7 +2985,7 @@ impl<'a> SceneBuilder<'a> {
             ratio_xy,
         };
 
-        let stretch_ratio = compute_stretch_ratio(stretch_size, info.rect.size());
+        let stretch_ratio = compute_stretch_ratio(stretch_size, info.pattern_rect.size());
 
         RadialGradient {
             extend_mode,
@@ -3011,7 +3011,7 @@ impl<'a> SceneBuilder<'a> {
         mut tile_spacing: LayoutSize,
         nine_patch: Option<Box<NinePatchDescriptor>>,
     ) -> ConicGradient {
-        let mut prim_rect = info.rect;
+        let mut prim_rect = info.pattern_rect;
         simplify_repeated_primitive(&stretch_size, &mut tile_spacing, &mut prim_rect);
 
         let stops = stops.iter().map(|stop| {
@@ -3021,7 +3021,7 @@ impl<'a> SceneBuilder<'a> {
             }
         }).collect();
 
-        let stretch_ratio = compute_stretch_ratio(stretch_size, info.rect.size());
+        let stretch_ratio = compute_stretch_ratio(stretch_size, info.pattern_rect.size());
 
         ConicGradient {
             extend_mode,
@@ -3132,7 +3132,7 @@ impl<'a> SceneBuilder<'a> {
         color: ColorF,
         sub_rect: Option<DeviceIntRect>,
     ) {
-        let mut prim_rect = info.rect;
+        let mut prim_rect = info.pattern_rect;
         // Resolve per-axis: axes that fill the prim use the unsnapped
         // prim-rect size (`prim_rect` here is unsnapped at scene build).
         let prim_size = prim_rect.size();
@@ -3143,7 +3143,7 @@ impl<'a> SceneBuilder<'a> {
         );
         simplify_repeated_primitive(&stretch_size_for_simplify, &mut tile_spacing, &mut prim_rect);
         let info = LayoutPrimitiveInfo {
-            rect: prim_rect,
+            pattern_rect: prim_rect,
             .. *info
         };
 
@@ -3255,7 +3255,7 @@ impl<'a> SceneBuilder<'a> {
         let mut prim_list = PrimitiveList::empty();
         prim_list.add_prim(
             backdrop_capture_instance,
-            info.rect,
+            info.pattern_rect,
             spatial_node_index,
             info.flags,
             &mut self.prim_instances,
@@ -3318,7 +3318,7 @@ impl<'a> SceneBuilder<'a> {
                 Some(sc_index) => {
                     self.sc_stack[sc_index].prim_list.add_prim(
                         filtered_instance,
-                        info.rect,
+                        info.pattern_rect,
                         filter_spatial_node_index,
                         info.flags,
                         &mut self.prim_instances,
@@ -3328,7 +3328,7 @@ impl<'a> SceneBuilder<'a> {
                 None => {
                     self.tile_cache_builder.add_prim(
                         filtered_instance,
-                        info.rect,
+                        info.pattern_rect,
                         filter_spatial_node_index,
                         info.flags,
                         self.spatial_tree,
@@ -3359,7 +3359,7 @@ impl<'a> SceneBuilder<'a> {
 
             self.add_primitive_to_draw_list(
                 backdrop_render_instance,
-                info.rect,
+                info.pattern_rect,
                 spatial_node_index,
                 info.flags,
             );

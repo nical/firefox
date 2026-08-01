@@ -837,10 +837,11 @@ pub enum ResultMsg {
 /// Primitive metadata we pass around in a bunch of places
 #[derive(Copy, Clone, Debug)]
 pub struct LayoutPrimitiveInfo {
-    /// NOTE: this is *ideally* redundant with the clip_rect
-    /// but that's an ongoing project, so for now it exists and is used :(
-    pub rect: LayoutRect,
-    pub clip_rect: LayoutRect,
+    /// Situates the primitive's pattern. Unconstrained relative to `bounds`:
+    /// it can be larger, smaller or disjoint.
+    pub pattern_rect: LayoutRect,
+    /// The primitive's coverage rect. Never extends the primitive.
+    pub bounds: LayoutRect,
     pub flags: PrimitiveFlags,
     /// Which edges should get anti-aliasing if the primitive is axis-aligned.
     ///
@@ -857,10 +858,10 @@ pub struct LayoutPrimitiveInfo {
 }
 
 impl LayoutPrimitiveInfo {
-    pub fn with_clip_rect(rect: LayoutRect, clip_rect: LayoutRect) -> Self {
+    pub fn with_bounds(pattern_rect: LayoutRect, bounds: LayoutRect) -> Self {
         Self {
-            rect,
-            clip_rect,
+            pattern_rect,
+            bounds,
             flags: PrimitiveFlags::default(),
             aligned_aa_edges: EdgeMask::empty(),
             transformed_aa_edges: EdgeMask::all(),

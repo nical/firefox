@@ -129,7 +129,7 @@ impl HitTestingItem {
         clip_node_id: ClipNodeId,
     ) -> HitTestingItem {
         HitTestingItem {
-            rect: info.rect,
+            rect: info.pattern_rect,
             tag,
             animation_id,
             is_backface_visible: info.flags.contains(PrimitiveFlags::IS_BACKFACE_VISIBLE),

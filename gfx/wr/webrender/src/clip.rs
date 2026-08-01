@@ -1062,7 +1062,7 @@ impl ClipTreeBuilder {
         self.tree.leaves.push(ClipTreeLeaf {
             node_id,
             prim_clip_root,
-            unsnapped_bounds: info.clip_rect,
+            unsnapped_bounds: info.bounds,
             snapped_bounds: LayoutRect::zero(),
         });
 
@@ -2545,7 +2545,7 @@ mod tests {
         );
 
         let mut builder = ClipTreeBuilder::new();
-        let info = LayoutPrimitiveInfo::with_clip_rect(
+        let info = LayoutPrimitiveInfo::with_bounds(
             lr(0.0, 0.0, 100.0, 100.0),
             lr(0.0, 0.0, 100.0, 100.0),
         );
