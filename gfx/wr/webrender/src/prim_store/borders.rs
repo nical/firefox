@@ -126,7 +126,7 @@ impl NormalBorderData {
         scale.0 = scale.0.min(max_scale.0);
 
         for segment in &segments {
-            let local_clip_rect = match segment.clip_rect {
+            let segment_bounds = match segment.clip_rect {
                 Some(clip_rect) => desc.bounds
                     .intersection(&clip_rect)
                     .unwrap_or(LayoutRect::zero()),
@@ -138,7 +138,7 @@ impl NormalBorderData {
                     color,
                     &QuadDescriptor::new(
                         segment.pattern_rect,
-                        local_clip_rect,
+                        segment_bounds,
                         desc.aligned_aa_edges & segment.edge_flags,
                         desc.transformed_aa_edges & segment.edge_flags,
                     ),
@@ -245,7 +245,7 @@ impl NormalBorderData {
                 &pattern,
                 &QuadDescriptor::new(
                     segment_pattern_rect,
-                    local_clip_rect,
+                    segment_bounds,
                     desc.aligned_aa_edges & segment.edge_flags,
                     desc.transformed_aa_edges & segment.edge_flags,
                 ),

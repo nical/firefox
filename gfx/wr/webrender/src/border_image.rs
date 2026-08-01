@@ -61,21 +61,21 @@ pub fn prepare_border_image_nine_patch(
             color: ColorF::WHITE,
         };
 
-        let mut segment_local_rect = *dst_rect;
-        segment_local_rect.min += offset;
+        let mut segment_pattern_rect = *dst_rect;
+        segment_pattern_rect.min += offset;
 
         // For centered (Repeat) tiling we expand the rect leftwards/upwards
         // so a partial tile spans the gap; clip back to the original dst_rect
         // so the fill doesn't bleed into the surrounding edges and corners.
-        let local_clip_rect = clip_chain.local_clip_rect
+        let segment_bounds = clip_chain.local_clip_rect
             .intersection(dst_rect)
             .unwrap_or(LayoutRect::zero());
 
         prepare_repeatable_quad(
             &segment_pattern,
             &QuadDescriptor::new(
-                segment_local_rect,
-                local_clip_rect,
+                segment_pattern_rect,
+                segment_bounds,
                 desc.aligned_aa_edges & side,
                 desc.transformed_aa_edges & side,
             ),
