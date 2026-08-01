@@ -214,7 +214,7 @@ pub struct PrimitiveDrawHeader {
 
     /// Local-space rect of the primitive after device-pixel snapping has
     /// been applied. Populated for every prim each frame by the visibility
-    /// pass (snapping `PrimitiveInstance.unsnapped_prim_rect` against the
+    /// pass (snapping `PrimitiveInstance.unsnapped_pattern_rect` against the
     /// surface raster node) before any visibility / prepare consumer reads it.
     pub snapped_pattern_rect: LayoutRect,
 }
@@ -373,7 +373,7 @@ pub fn update_prim_visibility(
 
             let policy = prim_instance.snap_policy(snaps, frame_state.data_stores);
             let snapped_pattern_rect =
-                snapper.snap_rect_rounded(&prim_instance.unsnapped_prim_rect, policy.rect);
+                snapper.snap_rect_rounded(&prim_instance.unsnapped_pattern_rect, policy.rect);
 
             // The draw header is accumulated here and pushed only once the
             // primitive is known to be drawn, so culled primitives cost nothing.
