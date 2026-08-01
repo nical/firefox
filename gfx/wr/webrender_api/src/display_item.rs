@@ -1915,7 +1915,7 @@ impl FilterData {
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct IframeDisplayItem {
-    pub pattern_rect: LayoutRect,
+    pub bounds: LayoutRect,
     pub clip_rect: LayoutRect,
     pub space_and_clip: SpaceAndClipInfo,
     pub pipeline_id: PipelineId,

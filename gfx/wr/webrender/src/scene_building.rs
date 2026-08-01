@@ -1184,7 +1184,7 @@ impl<'a> SceneBuilder<'a> {
 
         self.id_to_index_mapper_stack.push(NodeIdToIndexMapper::default());
 
-        let bounds = info.pattern_rect;
+        let bounds = info.bounds;
 
         // The iframe's reference-frame origin is snapped to the device pixel
         // grid at frame time (`SpatialNode::update`, gated on `should_snap`),

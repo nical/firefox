@@ -383,8 +383,8 @@ impl YamlWriter {
                         self.push_level();
                         self.write_spatial_id(info.space_and_clip.spatial_id);
                         self.write_clip_chain_id(info.space_and_clip.clip_chain_id);
-                        self.write_bounds(info.pattern_rect);
-                        self.maybe_write_clip_rect(info.pattern_rect, info.clip_rect);
+                        self.write_bounds(info.bounds);
+                        self.maybe_write_clip_rect(info.bounds, info.clip_rect);
                         self.write_line(&format!("id: [{}, {}]",
                             info.pipeline_id.0,
                             info.pipeline_id.1,

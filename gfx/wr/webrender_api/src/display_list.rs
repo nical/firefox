@@ -2159,7 +2159,7 @@ impl DisplayListBuilder {
     ) {
         let offset = self.accumulated_scroll_offset(space_and_clip.spatial_id);
         let item = di::DisplayItem::Iframe(di::IframeDisplayItem {
-            pattern_rect: bounds.translate(offset),
+            bounds: bounds.translate(offset),
             clip_rect: clip_rect.translate(offset),
             space_and_clip: *space_and_clip,
             pipeline_id,
