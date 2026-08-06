@@ -37,6 +37,9 @@ pub type LayoutOrDeviceRect = api::euclid::default::Box2D<f32>;
 
 const MIN_AA_SEGMENTS_SIZE: f32 = 4.0;
 const MIN_QUAD_SPLIT_SIZE: f32 = 256.0;
+/// Must match `AA_PIXEL_RADIUS` in ps_quad.glsl: how far the shader expands
+/// anti-aliased edges outwards from the quad's bounds.
+pub const AA_PIXEL_RADIUS: f32 = 2.0;
 // We merge compatible neighbor tiles in the same rows which means that allowing
 // more tiles on the x axis doesn't generally produce more tiles, but it allows
 // more precise segmentation.
@@ -715,6 +718,20 @@ fn prepare_quad_impl(
 
         let main_prim_address = frame_state.frame_gpu_data.f32.push(&quad);
 
+        // For a 2d scale-offset prim, `quad.bounds` is the primitive's footprint
+        // in device space already, and tighter than the draw's coverage rect.
+        // Otherwise the coordinates are in layout space and the draw's rect is
+        // the best we have.
+        let device_rect = match transform.as_2d_scale_offset() {
+            Some(_) => device_coverage_rect(
+                DeviceRect::from_untyped(&quad.bounds),
+                draw_index,
+                aa_flags,
+                scratch,
+            ),
+            None => scratch.frame.draw(draw_index).device_coverage_rect,
+        };
+
         // Render the primitive as a single instance. Coordinates are provided to the
         // shader in layout space.
         frame_state.push_prim(
@@ -723,6 +740,7 @@ fn prepare_quad_impl(
                 pattern.shader_input,
                 pattern.texture_input.task_ids,
                 draw_index,
+                device_rect,
                 main_prim_address,
                 transform_id,
                 quad_flags,
@@ -1697,6 +1715,9 @@ fn add_pattern_prim(
             pattern.shader_input,
             pattern.texture_input.task_ids,
             draw_index,
+            // The segments are contained in the coverage rect, and the pattern
+            // segments are not anti-aliased.
+            *coverage_rect,
             prim_address,
             GpuTransformId::IDENTITY,
             quad_flags,
@@ -1746,6 +1767,9 @@ fn add_composite_prim(
             ),
             [RenderTaskId::INVALID; 3],
             draw_index,
+            // The segments composited here are contained in `rect`, and the
+            // composite is not anti-aliased.
+            *rect,
             composite_prim_address,
             GpuTransformId::IDENTITY,
             quad_flags,
@@ -2037,6 +2061,32 @@ pub fn prepare_clip_task(
             rounded_rect_fast_path: fast_path,
         }),
     );
+}
+
+/// The device-space footprint to hand the batching code for a quad command,
+/// from the device rect of the geometry that will be drawn.
+///
+/// Clamped to the draw's coverage rect, which folds in the clips that are not in
+/// the primitive's coordinate system as well as the surface's clipping rect, and
+/// inflated to account for the shader expanding anti-aliased edges outwards.
+/// Rounding out (rather than in) matters: batching needs a superset of what is
+/// drawn, or overlapping primitives can end up in the same batch and be drawn
+/// out of order.
+fn device_coverage_rect(
+    device_rect: DeviceRect,
+    draw_index: PrimitiveDrawIndex,
+    aa_flags: EdgeMask,
+    scratch: &PrimitiveScratchBuffer,
+) -> DeviceRect {
+    let draw_rect = scratch.frame.draw(draw_index).device_coverage_rect;
+
+    let mut rect = device_rect.intersection(&draw_rect).unwrap_or(device_rect);
+
+    if !aa_flags.is_empty() {
+        rect = rect.inflate(AA_PIXEL_RADIUS, AA_PIXEL_RADIUS);
+    }
+
+    rect.round_out()
 }
 
 fn create_quad_primitive(

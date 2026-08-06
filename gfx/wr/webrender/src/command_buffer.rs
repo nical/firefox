@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use api::{MixBlendMode, units::{LayoutPoint, LayoutRect, PictureRect}};
+use api::{MixBlendMode, units::{DevicePoint, DeviceRect, LayoutPoint, LayoutRect, PictureRect}};
 use crate::pattern::{PatternKind, PatternShaderInput};
 use crate::renderer::BlendMode;
 use crate::{spatial_tree::SpatialNodeIndex, render_task_graph::RenderTaskId, surface::SurfaceTileDescriptor, tile_cache::TileKey, renderer::GpuBufferAddress, FastHashMap};
@@ -135,8 +135,13 @@ pub enum PrimitiveCommand {
         // Source textures sampled by the pattern. Most patterns only use slot 0;
         // multi-plane patterns such as YUV use the additional slots.
         src_color_task_ids: [RenderTaskId; 3],
-        // TODO(gw): Used for bounding rect only, could possibly remove
         draw_index: storage::Index<PrimitiveDrawHeader>,
+        /// Conservative footprint of this command in the destination surface's
+        /// device space, used by batching to test overlap between primitives.
+        ///
+        /// Tighter than the draw's `device_coverage_rect` when a primitive is
+        /// split into several commands (nine-patch, tiling, repetition).
+        device_rect: DeviceRect,
         gpu_buffer_address: GpuBufferAddress,
         transform_id: GpuTransformId,
         quad_flags: QuadFlags,
@@ -175,6 +180,7 @@ impl PrimitiveCommand {
         pattern_input: PatternShaderInput,
         src_color_task_ids: [RenderTaskId; 3],
         draw_index: storage::Index<PrimitiveDrawHeader>,
+        device_rect: DeviceRect,
         gpu_buffer_address: GpuBufferAddress,
         transform_id: GpuTransformId,
         quad_flags: QuadFlags,
@@ -186,6 +192,7 @@ impl PrimitiveCommand {
             pattern_input,
             src_color_task_ids,
             draw_index,
+            device_rect,
             gpu_buffer_address,
             transform_id,
             quad_flags,
@@ -306,8 +313,12 @@ impl CommandBuffer {
                 self.commands.push(Command::draw_instance(draw_index));
                 self.commands.push(Command::data(gpu_buffer_address.as_u32()));
             }
-            PrimitiveCommand::Quad { pattern, pattern_input, draw_index, gpu_buffer_address, transform_id, quad_flags, edge_flags, src_color_task_ids, blend_mode } => {
+            PrimitiveCommand::Quad { pattern, pattern_input, draw_index, device_rect, gpu_buffer_address, transform_id, quad_flags, edge_flags, src_color_task_ids, blend_mode } => {
                 self.commands.push(Command::draw_quad(draw_index));
+                self.commands.push(Command::data(device_rect.min.x.to_bits()));
+                self.commands.push(Command::data(device_rect.min.y.to_bits()));
+                self.commands.push(Command::data(device_rect.max.x.to_bits()));
+                self.commands.push(Command::data(device_rect.max.y.to_bits()));
                 self.commands.push(Command::data(pattern as u32));
                 self.commands.push(Command::data(pattern_input.0 as u32));
                 self.commands.push(Command::data(pattern_input.1 as u32));
@@ -375,6 +386,16 @@ impl CommandBuffer {
                 }
                 Command::CMD_DRAW_QUAD => {
                     let draw_index = storage::Index::from_u32(param);
+                    let device_rect = DeviceRect {
+                        min: DevicePoint::new(
+                            f32::from_bits(cmd_iter.next().unwrap().0),
+                            f32::from_bits(cmd_iter.next().unwrap().0),
+                        ),
+                        max: DevicePoint::new(
+                            f32::from_bits(cmd_iter.next().unwrap().0),
+                            f32::from_bits(cmd_iter.next().unwrap().0),
+                        ),
+                    };
                     let pattern = PatternKind::from_u32(cmd_iter.next().unwrap().0);
                     let pattern_input = PatternShaderInput(
                         cmd_iter.next().unwrap().0 as i32,
@@ -401,6 +422,7 @@ impl CommandBuffer {
                         pattern_input,
                         src_color_task_ids,
                         draw_index,
+                        device_rect,
                         gpu_buffer_address,
                         transform_id,
                         quad_flags,

@@ -26,7 +26,7 @@ use crate::renderer::{BlendMode, GpuBufferBuilder, ShaderColorMode};
 use crate::resource_cache::GlyphFetchResult;
 use crate::space::SpaceMapper;
 use crate::transform::TransformPalette;
-use crate::visibility::{PrimitiveVisibilityFlags, DrawState};
+use crate::visibility::{PrimitiveDrawHeader, PrimitiveVisibilityFlags, DrawState};
 use std::{f32, i32, usize};
 
 
@@ -707,6 +707,35 @@ impl AlphaBatchBuilder {
     }
 }
 
+/// Check that a command's device-space rect is consistent with the conservative
+/// coverage rect of the draw it belongs to.
+///
+/// The command's rect may extend past the draw's rect by the amount the shader
+/// expands anti-aliased edges, but not further: a larger discrepancy means the
+/// rect was computed in the wrong space, which would silently break the overlap
+/// tests batching relies on.
+fn debug_assert_valid_device_rect(
+    device_rect: &DeviceRect,
+    prim_info: &PrimitiveDrawHeader,
+) {
+    // A draw with no coverage isn't expected to produce commands, but if it
+    // does, there is nothing to compare against.
+    if cfg!(debug_assertions)
+        && !device_rect.is_empty()
+        && !prim_info.device_coverage_rect.is_empty()
+    {
+        let allowed = prim_info.device_coverage_rect.inflate(
+            quad::AA_PIXEL_RADIUS + 1.0,
+            quad::AA_PIXEL_RADIUS + 1.0,
+        );
+        debug_assert!(
+            allowed.contains_box(device_rect),
+            "device rect {device_rect:?} is not within the draw's coverage rect {:?}",
+            prim_info.device_coverage_rect,
+        );
+    }
+}
+
 /// Supports (recursively) adding a list of primitives and pictures to an alpha batch
 /// builder. In future, it will support multiple dirty regions / slices, allowing the
 /// contents of a picture to be spliced into multiple batch builders.
@@ -833,10 +862,12 @@ impl BatchBuilder {
             PrimitiveCommand::Instance { draw_index, .. } => {
                 draw_index
             }
-            PrimitiveCommand::Quad { pattern, pattern_input, draw_index, gpu_buffer_address, quad_flags, edge_flags, transform_id, src_color_task_ids, blend_mode } => {
+            PrimitiveCommand::Quad { pattern, pattern_input, draw_index, device_rect, gpu_buffer_address, quad_flags, edge_flags, transform_id, src_color_task_ids, blend_mode } => {
                 let prim_info = ctx.scratch.frame.draw(*draw_index);
                 let bounding_rect = &prim_info.clip_chain.pic_coverage_rect;
                 let render_task_address = self.batcher.render_task_address;
+
+                debug_assert_valid_device_rect(device_rect, prim_info);
 
                 let mut readback = None;
                 if pattern.requires_backdrop_readback() {
