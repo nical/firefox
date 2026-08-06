@@ -14,6 +14,7 @@ use crate::gpu_types::SplitCompositeInstance;
 use crate::gpu_types::{PrimitiveInstanceData, GlyphInstance};
 use crate::gpu_types::{PrimitiveHeader, PrimitiveHeaderIndex};
 use crate::gpu_types::MaskInstance;
+use crate::gpu_types::QuadSegment;
 use crate::internal_types::{FastHashMap, FrameAllocator, FrameMemory, FrameVec, Swizzle, TextureSource};
 use crate::prim_store::PrimitiveKind;
 use crate::prim_store::PrimitiveInstance;
@@ -825,7 +826,7 @@ impl BatchBuilder {
         z_generator: &mut ZBufferIdGenerator,
         prim_instances: &[PrimitiveInstance],
         gpu_buffer_builder: &mut GpuBufferBuilder,
-        segments: &[RenderTaskId],
+        segments: &[QuadSegment],
     ) {
         let draw_index = match cmd {
             PrimitiveCommand::Simple { draw_index } => {
@@ -925,11 +926,24 @@ impl BatchBuilder {
                         },
                     );
                 } else {
-                    for (i, task_id) in segments.iter().enumerate() {
+                    for (i, segment) in segments.iter().enumerate() {
                         // TODO(gw): edge_flags should be per-segment, when used for more than composites
                         debug_assert!(edge_flags.is_empty());
 
                         let z_id = z_generator.next();
+
+                        // Each segment only covers its own rect, which batches
+                        // better than the whole primitive's footprint. The
+                        // shader clamps the segment to the primitive bounds, so
+                        // this is a superset of what is drawn.
+                        let segment_rect = DeviceRect::from_untyped(&segment.rect);
+                        debug_assert!(
+                            segment_rect.is_empty()
+                                || device_rect.inflate(1.0, 1.0).contains_box(&segment_rect),
+                            "segment rect {:?} is not within the command's rect {:?}",
+                            segment_rect,
+                            device_rect,
+                        );
 
                         quad::add_to_batch(
                             *pattern,
@@ -940,7 +954,7 @@ impl BatchBuilder {
                             *quad_flags,
                             *edge_flags,
                             i as u8,
-                            [*task_id, src_color_task_ids[1], src_color_task_ids[2]],
+                            [segment.task_id, src_color_task_ids[1], src_color_task_ids[2]],
                             z_id,
                             *blend_mode,
                             readback.map(|rb| rb.readback_task_id),
@@ -951,7 +965,7 @@ impl BatchBuilder {
                                     key,
                                     BatchFeatures::empty(),
                                     readback.as_ref(),
-                                    bounding_rect,
+                                    &segment_rect,
                                     z_id,
                                 );
                                 batch.push(instance);

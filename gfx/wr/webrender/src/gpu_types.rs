@@ -662,7 +662,7 @@ impl GpuBufferDataF for QuadPrimitive {
 pub const VECS_PER_QUAD_SEGMENT: usize = 2;
 
 /// Matches QuadSegment in ps_quad.glsl
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "capture", derive(Serialize))]
 pub struct QuadSegment {
     pub rect: LayoutOrDeviceRect,

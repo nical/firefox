@@ -7,6 +7,8 @@ use crate::pattern::{PatternKind, PatternShaderInput};
 use crate::renderer::BlendMode;
 use crate::{spatial_tree::SpatialNodeIndex, render_task_graph::RenderTaskId, surface::SurfaceTileDescriptor, tile_cache::TileKey, renderer::GpuBufferAddress, FastHashMap};
 use crate::gpu_types::QuadSegment;
+use crate::quad::LayoutOrDeviceRect;
+use euclid::point2;
 use crate::prim_store::storage;
 use crate::segment::EdgeMask;
 use crate::transform::GpuTransformId;
@@ -245,6 +247,13 @@ fn decode_blend_mode(val: u32) -> BlendMode {
 }
 
 /// A list of commands describing how to draw a primitive list.
+///
+/// The device-space rects the commands carry are in the device space of the
+/// surface the buffer is drawn into. That is well defined because a command
+/// buffer is only ever referenced by a single picture task: each
+/// `create_cmd_buffer` result is stored in exactly one task, and the tasks that
+/// share a surface (`PictureTask::duplicate`, picture cache tiles) get their own
+/// buffer.
 #[cfg_attr(feature = "capture", derive(Serialize))]
 #[cfg_attr(feature = "replay", derive(Deserialize))]
 pub struct CommandBuffer {
@@ -264,6 +273,9 @@ impl CommandBuffer {
     }
 
     /// Push a list of segments in to the cmd buffer
+    ///
+    /// The segment rects are in the destination surface's device space (only the
+    /// device-space quad paths produce segments), and batching relies on that.
     pub fn set_segments(
         &mut self,
         segments: &[QuadSegment],
@@ -272,6 +284,10 @@ impl CommandBuffer {
         for segment in segments {
             self.commands.push(Command::data(segment.task_id.index));
             self.commands.push(Command::data(segment.task_id.sub_rect_index as u32));
+            self.commands.push(Command::data(segment.rect.min.x.to_bits()));
+            self.commands.push(Command::data(segment.rect.min.y.to_bits()));
+            self.commands.push(Command::data(segment.rect.max.x.to_bits()));
+            self.commands.push(Command::data(segment.rect.max.y.to_bits()));
         }
     }
 
@@ -338,7 +354,7 @@ impl CommandBuffer {
     pub fn iter_prims<F>(
         &self,
         f: &mut F,
-    ) where F: FnMut(&PrimitiveCommand, SpatialNodeIndex, &[RenderTaskId]) {
+    ) where F: FnMut(&PrimitiveCommand, SpatialNodeIndex, &[QuadSegment]) {
         let mut current_spatial_node_index = SpatialNodeIndex::INVALID;
         let mut cmd_iter = self.commands.iter();
         // TODO(gw): Consider pre-allocating this / Smallvec if it shows up in profiles.
@@ -445,12 +461,21 @@ impl CommandBuffer {
                 Command::CMD_SET_SEGMENTS => {
                     let count = param;
                     for _ in 0 .. count {
-                        segments.push(
-                            RenderTaskId {
-                                index: cmd_iter.next().unwrap().0,
-                                sub_rect_index: cmd_iter.next().unwrap().0 as u16,
-                            }
-                        );
+                        let task_id = RenderTaskId {
+                            index: cmd_iter.next().unwrap().0,
+                            sub_rect_index: cmd_iter.next().unwrap().0 as u16,
+                        };
+                        let rect = LayoutOrDeviceRect {
+                            min: point2(
+                                f32::from_bits(cmd_iter.next().unwrap().0),
+                                f32::from_bits(cmd_iter.next().unwrap().0),
+                            ),
+                            max: point2(
+                                f32::from_bits(cmd_iter.next().unwrap().0),
+                                f32::from_bits(cmd_iter.next().unwrap().0),
+                            ),
+                        };
+                        segments.push(QuadSegment { rect, task_id });
                     }
                 }
                 _ => {
