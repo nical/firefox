@@ -217,6 +217,15 @@ pub struct PrimitiveDrawHeader {
     /// pass (snapping `PrimitiveInstance.unsnapped_pattern_rect` against the
     /// surface raster node) before any visibility / prepare consumer reads it.
     pub snapped_pattern_rect: LayoutRect,
+
+    /// Conservative coverage of the primitive in the device space of the
+    /// surface it is drawn into (see `SurfaceInfo::map_prim_to_device_rect`),
+    /// used by batching to test whether primitives overlap.
+    ///
+    /// Filled in by the prepare pass, so it is only valid from there on. Quad
+    /// primitives compute tighter per-command device rects; this is the rect
+    /// for everything else, and the clamp the tighter rects stay within.
+    pub device_coverage_rect: DeviceRect,
 }
 
 impl PrimitiveDrawHeader {
@@ -231,6 +240,7 @@ impl PrimitiveDrawHeader {
             kind_scratch: KindScratchHandle::None,
             compositor_surface_kind: CompositorSurfaceKind::Blit,
             snapped_pattern_rect: LayoutRect::zero(),
+            device_coverage_rect: DeviceRect::zero(),
         }
     }
 
@@ -243,6 +253,7 @@ impl PrimitiveDrawHeader {
         self.clip_task_index = ClipTaskIndex::INVALID;
         self.kind_scratch = KindScratchHandle::None;
         self.compositor_surface_kind = CompositorSurfaceKind::Blit;
+        self.device_coverage_rect = DeviceRect::zero();
     }
 }
 

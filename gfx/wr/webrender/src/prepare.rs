@@ -353,7 +353,20 @@ fn prepare_prim_for_render(
     }
 
     let prim_spatial_node_index = cluster.spatial_node_index;
-    let device_pixel_scale = frame_state.surfaces[pic_context.surface_index.0].device_pixel_scale;
+    let surface = &frame_state.surfaces[pic_context.surface_index.0];
+    let device_pixel_scale = surface.device_pixel_scale;
+
+    // Record the primitive's coverage in the surface's device space, for
+    // batching to test overlap with. Quad primitives refine this into tighter
+    // per-command rects further down.
+    {
+        let draw = scratch.frame.draw_mut(draw_index);
+        draw.device_coverage_rect = surface.map_prim_to_device_rect(
+            &draw.clip_chain.pic_coverage_rect,
+            frame_context.spatial_tree,
+        );
+    }
+
     // Snapshot of the per-frame draw header for this prim. Copy is fine here
     // because the only field this function writes (clip_task_index, in the
     // segmented-clip path) isn't read again in this function — and the other

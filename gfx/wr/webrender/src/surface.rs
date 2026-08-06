@@ -351,6 +351,51 @@ impl SurfaceInfo {
         raster_rect * self.device_pixel_scale
     }
 
+    /// Conservative device-space coverage rect for a primitive drawn into this
+    /// surface, from the primitive's picture-space coverage rect.
+    ///
+    /// The result is in this surface's *unclipped* device space (the surface's
+    /// raster space scaled by its device pixel scale), which is the space quad
+    /// prepare works in. It is not offset by any render task's content origin.
+    ///
+    /// Rounded out, and clipped only by the surface's own clipping rect, so that
+    /// it is always a superset of what the primitive covers. Batching relies on
+    /// that: a too-large rect only costs an extra batch break, whereas a
+    /// too-small one would let overlapping primitives be drawn out of order.
+    pub fn map_prim_to_device_rect(
+        &self,
+        pic_rect: &PictureRect,
+        spatial_tree: &SpatialTree,
+    ) -> DeviceRect {
+        let clipped_rect = pic_rect.intersection_unchecked(&self.clipping_rect);
+        if clipped_rect.is_empty() {
+            return DeviceRect::zero();
+        }
+
+        // As in `map_to_device_rect`, raster space is treated as world space
+        // here: the two only differ by the device pixel scale.
+        let raster_rect: WorldRect = if self.raster_spatial_node_index != self.surface_spatial_node_index {
+            let pic_to_raster = SpaceMapper::new_with_target(
+                self.raster_spatial_node_index,
+                self.surface_spatial_node_index,
+                WorldRect::max_rect(),
+                spatial_tree,
+            );
+
+            match pic_to_raster.map(&clipped_rect) {
+                Some(rect) => rect,
+                // Shouldn't happen: the surface and raster nodes only differ
+                // within the root coordinate system (see `map_to_device_rect`).
+                // If it does, the conservative answer is the only safe one.
+                None => return DeviceRect::max_rect(),
+            }
+        } else {
+            clipped_rect.cast_unit()
+        };
+
+        (raster_rect * self.device_pixel_scale).round_out()
+    }
+
     /// Clip and transform a local rect to a device rect suitable for allocating
     /// a child off-screen surface of this surface (e.g. for clip-masks)
     pub fn get_surface_rect(
