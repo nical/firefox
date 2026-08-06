@@ -294,7 +294,7 @@ impl RenderTarget {
                             prim_headers,
                             transforms,
                             pic_task.raster_spatial_node_index,
-                            pic_task.surface_spatial_node_index,
+                            pic_task.device_pixel_scale,
                             z_generator,
                             prim_instances,
                             gpu_buffer_builder,
