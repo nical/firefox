@@ -29,7 +29,7 @@ use crate::space::SpaceMapper;
 use crate::spatial_tree::{CoordinateSpaceMapping, SpatialNodeIndex, SpatialTree};
 use crate::transform::GpuTransformId;
 use crate::util::{extract_inner_rect_k, MaxRect, ScaleOffset};
-use crate::visibility::{compute_conservative_visible_rect, PrimitiveDrawIndex};
+use crate::visibility::PrimitiveDrawIndex;
 
 /// This type reflects the unfortunate situation with quad coordinates where we
 /// sometimes use layout and sometimes device coordinates.
@@ -452,13 +452,25 @@ pub fn prepare_repeatable_quad(
 
     // Repeat by duplicating the primitive.
 
-    let visible_rect = compute_conservative_visible_rect(
-        clip_chain,
-        frame_state.current_dirty_region().combined,
-        frame_state.current_dirty_region().visibility_spatial_node,
+    // Only emit the repetitions that the surface we are drawing into actually
+    // needs. `clipping_rect` is the dirty region for a primitive drawn straight
+    // onto a picture cache slice, but for an intermediate surface that samples
+    // outside of its own footprint (a blur) it is the inflated region that
+    // surface needs, so the repetitions feeding the blur's margin are kept.
+    // Culling against the tile cache's dirty region instead would drop them and
+    // leave the blurred result wrong (bug 2064321).
+    let surface = &frame_state.surfaces[pic_context.surface_index.0];
+    let map_prim_to_surface: SpaceMapper<LayoutPixel, PicturePixel> = SpaceMapper::new_with_target(
+        surface.surface_spatial_node_index,
         transform.prim_spatial_node_index(),
+        PictureRect::max_rect(),
         frame_context.spatial_tree,
-    ).intersection_unchecked(&desc.bounds);
+    );
+    let visible_rect = surface.clipping_rect
+        .intersection(&clip_chain.pic_coverage_rect)
+        .and_then(|rect| map_prim_to_surface.unmap(&rect))
+        .unwrap_or(desc.bounds)
+        .intersection_unchecked(&desc.bounds);
 
     let stride = stretch_size + tile_spacing;
     let repetitions = crate::image_tiling::repetitions(&desc.pattern_rect, &visible_rect, stride);
