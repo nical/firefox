@@ -742,9 +742,9 @@ impl PictureInstance {
             frame_context.spatial_tree,
         );
 
-        // TODO: When moving VisRect to raster space, compute the picture
-        // bounds by projecting the parent surface's culling rect into the
-        // current surface's raster space.
+        // TODO: Compute the picture bounds by projecting the parent surface's
+        // culling rect into this surface's raster space, rather than the screen
+        // rect from the root.
         let pic_bounds = map_pic_to_device
             .unmap(&map_pic_to_device.bounds)
             .unwrap_or_else(PictureRect::max_rect);
@@ -986,10 +986,10 @@ impl PictureInstance {
         // into this pre-perspective space so the BSP works on real 3D planes
         // rather than post-perspective ones.
         ancestor_spatial_node_index: SpatialNodeIndex,
-        visibility_spatial_node_index: SpatialNodeIndex,
+        raster_spatial_node_index: SpatialNodeIndex,
         original_local_rect: LayoutRect,
         combined_local_clip_rect: &LayoutRect,
-        dirty_rect: VisRect,
+        dirty_rect: RasterRect,
         plane_split_anchor: PlaneSplitAnchor,
     ) -> bool {
         let plane_split_anchor = PlaneSplitAnchor {
@@ -1042,17 +1042,17 @@ impl PictureInstance {
                 // This may fail if the dirty rect doesn't have a valid pre-image (e.g. it
                 // sits behind the projection plane in ancestor space), in which case we
                 // fall back to no lateral bounds.
-                // TODO: Instead of trying to map the vis (world) space dirty rect into the
+                // TODO: Instead of mapping the raster space dirty rect into the
                 // right space here, we should be able to find the dirty rect in this space
                 // that was built during the dirty rect propagation at the beginning of the
                 // frame.
-                let map_ancestor_to_vis = SpaceMapper::<LayoutPixel, VisPixel>::new_with_target(
-                    visibility_spatial_node_index,
+                let map_ancestor_to_raster = SpaceMapper::<LayoutPixel, RasterPixel>::new_with_target(
+                    raster_spatial_node_index,
                     ancestor_spatial_node_index,
-                    VisRect::max_rect(),
+                    RasterRect::max_rect(),
                     spatial_tree,
                 );
-                let ancestor_dirty_rect = map_ancestor_to_vis.unmap(&dirty_rect);
+                let ancestor_dirty_rect = map_ancestor_to_raster.unmap(&dirty_rect);
 
                 let ancestor_bounds = ancestor_dirty_rect.map(|r| r.cast().to_rect().to_untyped());
 
@@ -2623,7 +2623,7 @@ pub fn prepare_picture_primitive(
 
     if let Picture3DContext::In { root_data: None, plane_splitter_index, ancestor_index, .. } = pic.context_3d {
         let dirty_rect = frame_state.current_dirty_region().combined;
-        let visibility_spatial_node = frame_state.current_dirty_region().visibility_spatial_node;
+        let raster_spatial_node = frame_state.current_dirty_region().raster_spatial_node;
 
         let splitter = &mut frame_state.plane_splitters[plane_splitter_index.0];
         let surface_index = raster_config.surface_index;
@@ -2635,7 +2635,7 @@ pub fn prepare_picture_primitive(
             frame_context.spatial_tree,
             prim_spatial_node_index,
             ancestor_index,
-            visibility_spatial_node,
+            raster_spatial_node,
             local_prim_rect,
             &prim_info.clip_chain.local_clip_rect,
             dirty_rect,
@@ -2911,12 +2911,11 @@ fn test_large_surface_scale_1() {
             clipped_local_rect: PictureRect::max_rect(),
             is_opaque: true,
             clipping_rect: PictureRect::max_rect(),
-            culling_rect: VisRect::max_rect(),
+            culling_rect: RasterRect::max_rect(),
             culling_rect_projection_failed: false,
             map_local_to_picture: map_local_to_picture.clone(),
             raster_spatial_node_index: root_reference_frame_index,
             surface_spatial_node_index: root_reference_frame_index,
-            visibility_spatial_node_index: root_reference_frame_index,
             device_pixel_scale: DevicePixelScale::new(1.0),
             world_scale_factors: (1.0, 1.0),
             blur_scale_factors: (1.0, 1.0),
@@ -2933,12 +2932,11 @@ fn test_large_surface_scale_1() {
             clipped_local_rect: PictureRect::max_rect(),
             is_opaque: true,
             clipping_rect: PictureRect::max_rect(),
-            culling_rect: VisRect::max_rect(),
+            culling_rect: RasterRect::max_rect(),
             culling_rect_projection_failed: false,
             map_local_to_picture,
             raster_spatial_node_index: root_reference_frame_index,
             surface_spatial_node_index: root_reference_frame_index,
-            visibility_spatial_node_index: root_reference_frame_index,
             device_pixel_scale: DevicePixelScale::new(43.82798767089844),
             world_scale_factors: (1.0, 1.0),
             blur_scale_factors: (1.0, 1.0),
@@ -3019,7 +3017,6 @@ fn test_drop_filter_dirty_region_outside_prim() {
             map_local_to_picture: map_local_to_picture.clone(),
             raster_spatial_node_index: root_reference_frame_index,
             surface_spatial_node_index: root_reference_frame_index,
-            visibility_spatial_node_index: root_reference_frame_index,
             device_pixel_scale: DevicePixelScale::new(1.0),
             world_scale_factors: (1.0, 1.0),
             blur_scale_factors: (1.0, 1.0),
@@ -3027,7 +3024,7 @@ fn test_drop_filter_dirty_region_outside_prim() {
             allow_snapping: true,
             force_scissor_rect: false,
             svgfe_source_map: ScaleOffset::identity(),
-            culling_rect: VisRect::max_rect(),
+            culling_rect: RasterRect::max_rect(),
             culling_rect_projection_failed: false,
         },
         SurfaceInfo {
@@ -3044,7 +3041,6 @@ fn test_drop_filter_dirty_region_outside_prim() {
             map_local_to_picture,
             raster_spatial_node_index: root_reference_frame_index,
             surface_spatial_node_index: root_reference_frame_index,
-            visibility_spatial_node_index: root_reference_frame_index,
             device_pixel_scale: DevicePixelScale::new(1.0),
             world_scale_factors: (1.0, 1.0),
             blur_scale_factors: (1.0, 1.0),
@@ -3052,7 +3048,7 @@ fn test_drop_filter_dirty_region_outside_prim() {
             allow_snapping: true,
             force_scissor_rect: false,
             svgfe_source_map: ScaleOffset::identity(),
-            culling_rect: VisRect::max_rect(),
+            culling_rect: RasterRect::max_rect(),
             culling_rect_projection_failed: false,
         },
     ];
@@ -3140,7 +3136,6 @@ fn test_drop_filter_partial_dirty_content_inflate() {
             map_local_to_picture: map_local_to_picture.clone(),
             raster_spatial_node_index: root_reference_frame_index,
             surface_spatial_node_index: root_reference_frame_index,
-            visibility_spatial_node_index: root_reference_frame_index,
             device_pixel_scale: DevicePixelScale::new(1.0),
             world_scale_factors: (1.0, 1.0),
             blur_scale_factors: (1.0, 1.0),
@@ -3148,7 +3143,7 @@ fn test_drop_filter_partial_dirty_content_inflate() {
             allow_snapping: true,
             force_scissor_rect: false,
             svgfe_source_map: ScaleOffset::identity(),
-            culling_rect: VisRect::max_rect(),
+            culling_rect: RasterRect::max_rect(),
             culling_rect_projection_failed: false,
         },
         SurfaceInfo {
@@ -3165,7 +3160,6 @@ fn test_drop_filter_partial_dirty_content_inflate() {
             map_local_to_picture,
             raster_spatial_node_index: root_reference_frame_index,
             surface_spatial_node_index: root_reference_frame_index,
-            visibility_spatial_node_index: root_reference_frame_index,
             device_pixel_scale: DevicePixelScale::new(1.0),
             world_scale_factors: (1.0, 1.0),
             blur_scale_factors: (1.0, 1.0),
@@ -3173,7 +3167,7 @@ fn test_drop_filter_partial_dirty_content_inflate() {
             allow_snapping: true,
             force_scissor_rect: false,
             svgfe_source_map: ScaleOffset::identity(),
-            culling_rect: VisRect::max_rect(),
+            culling_rect: RasterRect::max_rect(),
             culling_rect_projection_failed: false,
         },
     ];
