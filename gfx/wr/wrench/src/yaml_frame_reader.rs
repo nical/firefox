@@ -2204,9 +2204,6 @@ impl YamlFrameReader {
         let mix_blend_mode = yaml["mix-blend-mode"]
             .as_mix_blend_mode()
             .unwrap_or(MixBlendMode::Normal);
-        let raster_space = yaml["raster-space"]
-            .as_raster_space()
-            .unwrap_or(RasterSpace::Screen);
         let is_blend_container = yaml["blend-container"].as_bool().unwrap_or(false);
         let wraps_backdrop_filter = yaml["wraps-backdrop-filter"].as_bool().unwrap_or(false);
 
@@ -2267,7 +2264,6 @@ impl YamlFrameReader {
             mix_blend_mode,
             &filters,
             &filter_datas,
-            raster_space,
             flags,
             snapshot,
         );

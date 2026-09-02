@@ -13,7 +13,7 @@ use crate::color::ColorF;
 use crate::image::{ColorDepth, ImageKey};
 use crate::key_types::EdgeMask;
 use crate::units::*;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 // ******************************************************************
 // * NOTE: some of these structs have an "IMPLICIT" comment.        *
@@ -382,20 +382,18 @@ pub enum LineStyle {
 
 /// Identifies whether a text run is a normal (drawable) run or a shadow copy
 /// produced by desugaring a text-shadow, and if the latter whether the shadow
-/// is blurred. The scene builder maps this onto the two properties the old
-/// scene-builder shadow expansion baked into the shadow's `TextRun` key: the
-/// `shadow` flag (which makes color-bitmap glyphs sample alpha only), and the
-/// requested raster space (a blurred shadow rasterizes in `Local(1.0)` space,
-/// like the removed `TextRun::create_shadow`).
+/// is blurred. The scene builder maps this onto the two flags on the shadow's
+/// `TextRun` key: `shadow` (which makes color-bitmap glyphs sample alpha only)
+/// and `blurred_shadow` (which rasterizes the glyphs in local space).
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, Eq, Hash, PeekPoke)]
 pub enum GlyphShadowMode {
-    /// Not a shadow: normal glyphs, raster space taken from the stack.
+    /// Not a shadow: normal glyphs.
     #[default]
     None,
-    /// Shadow with no (noop) blur: shadow glyphs, raster space from the stack.
+    /// Shadow with no (noop) blur: shadow glyphs, rasterized like normal ones.
     Unblurred,
-    /// Blurred shadow: shadow glyphs, raster space forced to `Local(1.0)`.
+    /// Blurred shadow: shadow glyphs, rasterized in local space.
     Blurred,
 }
 
@@ -951,11 +949,6 @@ pub struct StackingContext {
     pub transform_style: TransformStyle,
     pub mix_blend_mode: MixBlendMode,
     pub clip_chain_id: Option<ClipChainId>,
-    /// Raster space already resolved against the enclosing stacking contexts by
-    /// `DisplayListBuilder::push_stacking_context`, not the space its caller
-    /// requested. Resolving on the builder means one raster space stack rather
-    /// than two that have to agree.
-    pub raster_space: RasterSpace,
     pub flags: StackingContextFlags,
 }
 // IMPLICIT: filters: Vec<FilterOp>, filter_datas: Vec<FilterData>, filter_primitives: Vec<FilterPrimitive>
@@ -965,52 +958,6 @@ pub struct StackingContext {
 pub enum TransformStyle {
     Flat = 0,
     Preserve3D = 1,
-}
-
-/// Configure whether the contents of a stacking context
-/// should be rasterized in local space or screen space.
-/// Local space rasterized pictures are typically used
-/// when we want to cache the output, and performance is
-/// important. Note that this is a performance hint only,
-/// which WR may choose to ignore.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, MallocSizeOf, Serialize, PeekPoke)]
-#[repr(u8)]
-pub enum RasterSpace {
-    // Rasterize in local-space, applying supplied scale to primitives.
-    // Best performance, but lower quality.
-    Local(f32),
-
-    // Rasterize the picture in screen-space, including rotation / skew etc in
-    // the rasterized element. Best quality, but slower performance. Note that
-    // any stacking context with a perspective transform will be rasterized
-    // in local-space, even if this is set.
-    Screen,
-}
-
-impl RasterSpace {
-    pub fn local_scale(self) -> Option<f32> {
-        match self {
-            RasterSpace::Local(scale) => Some(scale),
-            RasterSpace::Screen => None,
-        }
-    }
-}
-
-impl Eq for RasterSpace {}
-
-impl Hash for RasterSpace {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            RasterSpace::Screen => {
-                0.hash(state);
-            }
-            RasterSpace::Local(scale) => {
-                // Note: this is inconsistent with the Eq impl for -0.0 (don't care).
-                1.hash(state);
-                scale.to_bits().hash(state);
-            }
-        }
-    }
 }
 
 #[repr(C)]
@@ -2472,7 +2419,6 @@ impl_default_for_enums! {
     },
     Rotation => Degree0,
     TransformStyle => Flat,
-    RasterSpace => Local(f32::default()),
     MixBlendMode => Normal,
     ImageRendering => Auto,
     AlphaType => Alpha,

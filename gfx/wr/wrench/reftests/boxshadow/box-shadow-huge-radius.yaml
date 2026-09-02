@@ -7,7 +7,6 @@ root:
       "backface-visible": true
       type: "stacking-context"
       "transform-style": flat
-      "raster-space": screen
       filters: []
       items:
         -

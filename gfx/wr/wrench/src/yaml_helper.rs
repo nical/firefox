@@ -32,7 +32,6 @@ pub trait YamlHelper {
     fn as_border_radius_component(&self) -> LayoutSize;
     fn as_border_radius(&self) -> Option<BorderRadius>;
     fn as_transform_style(&self) -> Option<TransformStyle>;
-    fn as_raster_space(&self) -> Option<RasterSpace>;
     fn as_clip_mode(&self) -> Option<ClipMode>;
     fn as_graph_picture_reference(&self) -> Option<FilterOpGraphPictureReference>;
     fn as_mix_blend_mode(&self) -> Option<MixBlendMode>;
@@ -554,22 +553,6 @@ impl YamlHelper for Yaml {
 
     fn as_transform_style(&self) -> Option<TransformStyle> {
         self.as_str().and_then(StringEnum::from_str)
-    }
-
-    fn as_raster_space(&self) -> Option<RasterSpace> {
-        self.as_str().map(|s| {
-            match parse_function(s) {
-                ("screen", _, _) => {
-                    RasterSpace::Screen
-                }
-                ("local", ref args, _) if args.len() == 1 => {
-                    RasterSpace::Local(args[0].parse().unwrap())
-                }
-                f => {
-                    panic!("error parsing raster space {:?}", f);
-                }
-            }
-        })
     }
 
     fn as_mix_blend_mode(&self) -> Option<MixBlendMode> {

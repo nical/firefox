@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use api::{BorderRadius, ClipId, ClipMode, ColorF, DebugFlags, PrimitiveFlags, QualitySettings, RasterSpace};
+use api::{BorderRadius, ClipId, ClipMode, ColorF, DebugFlags, PrimitiveFlags, QualitySettings};
 use api::units::*;
 use crate::clip::{clamped_radius, ClipItemKeyKind, ClipNodeId, ClipTreeBuilder, intersect_rounded_rects};
 use crate::frame_builder::FrameBuilderConfig;
@@ -687,7 +687,6 @@ fn create_tile_cache(
         PrimitiveFlags::IS_BACKFACE_VISIBLE,
         prim_list,
         scroll_root,
-        RasterSpace::Screen,
         PictureFlags::empty(),
         None,
     ));

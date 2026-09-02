@@ -52,16 +52,16 @@ platform(linux) == embedded-bitmaps.yaml embedded-bitmaps.png
 # Only meaningful at scale 1.0: wrench emulates a device pixel scale by pushing a
 # root reference frame with a scale transform, and a bitmap-strike run rasterizes at
 # its transform's scale (bug 2064316), so at other scales the test rasterizes at the
-# emulated scale while the reference stays at the 1.0 it names. Gecko's real device
-# pixel scale is not a transform, so nothing is lost there.
-scale(1.0) fuzzy(1,20) platform(linux) == bitmap-glyph-transform.yaml bitmap-glyph-transform-ref.yaml
+# emulated scale while the png reference stays at the scale it was captured at.
+# Gecko's real device pixel scale is not a transform, so nothing is lost there.
+scale(1.0) fuzzy(1,20) platform(linux) == bitmap-glyph-transform.yaml bitmap-glyph-transform-ref.png
 # bug 2061411 / 2062234: a scale transform, uniform or not, must reach an
 # embedded-bitmap glyph. bug 2064316: it must reach the rasterizer as well, so the
 # glyph is rendered at its final size instead of being scaled up from the
 # untransformed one. FreeType-only (the bitmap strike selection), so linux, and
 # scale 1.0 only for the same reason as bitmap-glyph-transform above.
-scale(1.0) platform(linux) == 2061411-bitmap-scale.yaml 2061411-bitmap-scale-ref.yaml
-scale(1.0) platform(linux) != 2061411-bitmap-scale.yaml 2061411-bitmap-scale-notref.yaml
+scale(1.0) platform(linux) == 2061411-bitmap-scale.yaml 2061411-bitmap-scale-ref.png
+scale(1.0) platform(linux) != 2061411-bitmap-scale.yaml 2061411-bitmap-scale-notref.png
 fuzzy(1,22) platform(linux) == clipped-transform.yaml clipped-transform.png
 platform(mac) fuzzy(195,30) == color-bitmap-shadow.yaml color-bitmap-shadow-ref.yaml
 scale(*) platform(linux) == writing-modes.yaml writing-modes-ref.yaml
@@ -71,7 +71,6 @@ scale(*) == shadow-clip.yaml shadow-clip-ref.yaml
 scale(*) == shadow-fast-clip.yaml shadow-fast-clip-ref.yaml
 skip_on(android,device) fuzzy-if(platform(win),1,18) == shadow-partial-glyph.yaml shadow-partial-glyph-ref.yaml  # Fails on Pixel2
 fuzzy(2,212) platform(linux) == shadow-transforms.yaml shadow-transforms.png
-fuzzy(2,372) platform(linux) == raster-space.yaml raster-space.png
 scale(*) skip_on(android) skip_on(mac,>=10.14) != allow-subpixel.yaml allow-subpixel-ref.yaml  # Android: we don't enable sub-px aa on this platform.
 scale(*) != large-glyphs.yaml blank.yaml
 scale(*) != large-line-decoration.yaml blank.yaml
@@ -86,7 +85,6 @@ scale(1) options(disable-aa) == bug2065629.yaml bug2065629-ref.yaml
 scale(1) options(disable-aa) == bug2067555.yaml bug2067555-ref.yaml
 platform(linux) == perspective-clip.yaml perspective-clip.png
 fuzzy(1,600) platform(linux) == 3d-device-text.yaml 3d-device-text.png
-fuzzy(1,150) options(disable-subpixel) == raster-space-snap.yaml raster-space-snap-ref.yaml
 # == intermediate-transform.yaml intermediate-transform-ref.yaml # fails because of AA inavailable with an intermediate surface
 fuzzy(1,21) platform(linux) force_subpixel_aa_where_possible(true) == text-fixed-slice.yaml text-fixed-slice-slow.png
 fuzzy(1,21) platform(linux) force_subpixel_aa_where_possible(false) == text-fixed-slice.yaml text-fixed-slice-fast.png

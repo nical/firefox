@@ -217,15 +217,9 @@ StackingContextHelper::StackingContextHelper(
     mRasterScaleIsDegenerate = aParentSC.mRasterScaleIsDegenerate;
   }
 
-  // Content is always rasterized in screen (device) space. We used to rasterize
-  // in local space for animated transforms, but that skipped WebRender's
-  // device-pixel snapping and left text blurry at fractional device offsets
-  // (Bug 2051166); device raster space stays sharp and reuses cached glyphs.
-  auto rasterSpace = wr::RasterSpace::Screen();
-
   MOZ_ASSERT(!aParams.clip.IsNone());
-  mReferenceFrameId = mBuilder->PushStackingContext(
-      aParams, wr::ToLayoutRect(aBounds), rasterSpace);
+  mReferenceFrameId =
+      mBuilder->PushStackingContext(aParams, wr::ToLayoutRect(aBounds));
 
   if (mReferenceFrameId) {
     mSpaceAndClipChainHelper.emplace(aBuilder, mReferenceFrameId.ref());

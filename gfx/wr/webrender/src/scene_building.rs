@@ -36,7 +36,7 @@
 //!
 
 use api::{AlphaType, BorderDetails, BorderDisplayItem, BuiltDisplayList, BuiltDisplayListIter, PrimitiveFlags, SnapshotInfo};
-use api::{ClipId, ColorF, CommonItemProperties, ComplexClipRegion, ComponentTransferFuncType, RasterSpace};
+use api::{ClipId, ColorF, CommonItemProperties, ComplexClipRegion, ComponentTransferFuncType};
 use api::{DebugFlags, DisplayItem, DisplayItemRef, ExternalScrollId, FilterData};
 use api::{FilterOp, FontInstanceKey, FontSize, GlyphInstance, GlyphOptions, GlyphShadowMode, GradientStop};
 use api::{IdNamespace, IframeDisplayItem, ImageKey, ImageRendering, ItemRange, ColorDepth, QualitySettings};
@@ -203,8 +203,6 @@ struct PictureChainBuilder {
     spatial_node_index: SpatialNodeIndex,
     /// Prim flags for any pictures in this chain
     flags: PrimitiveFlags,
-    /// Requested raster space for enclosing stacking context
-    raster_space: RasterSpace,
     /// If true, set first picture as a resolve target
     set_resolve_target: bool,
     /// If true, mark the last picture as a sub-graph
@@ -217,7 +215,6 @@ impl PictureChainBuilder {
         prim_list: PrimitiveList,
         flags: PrimitiveFlags,
         spatial_node_index: SpatialNodeIndex,
-        raster_space: RasterSpace,
         is_sub_graph: bool,
     ) -> Self {
         PictureChainBuilder {
@@ -226,7 +223,6 @@ impl PictureChainBuilder {
             },
             spatial_node_index,
             flags,
-            raster_space,
             establishes_sub_graph: is_sub_graph,
             set_resolve_target: is_sub_graph,
         }
@@ -237,7 +233,6 @@ impl PictureChainBuilder {
         instance: PrimitiveInstance,
         flags: PrimitiveFlags,
         spatial_node_index: SpatialNodeIndex,
-        raster_space: RasterSpace,
     ) -> Self {
         PictureChainBuilder {
             current: PictureSource::WrappedPicture {
@@ -245,7 +240,6 @@ impl PictureChainBuilder {
             },
             flags,
             spatial_node_index,
-            raster_space,
             establishes_sub_graph: false,
             set_resolve_target: false,
         }
@@ -297,7 +291,6 @@ impl PictureChainBuilder {
                 self.flags,
                 prim_list,
                 self.spatial_node_index,
-                self.raster_space,
                 flags,
                 None,
             ))
@@ -306,7 +299,6 @@ impl PictureChainBuilder {
         let instance = create_prim_instance(
             pic_index,
             Some(composite_mode).into(),
-            self.raster_space,
             clip_node_id,
             interners,
             clip_tree_builder,
@@ -318,7 +310,6 @@ impl PictureChainBuilder {
             },
             spatial_node_index: self.spatial_node_index,
             flags: self.flags,
-            raster_space: self.raster_space,
             // We are now on a subsequent picture, so set_resolve_target has been handled
             set_resolve_target: false,
             establishes_sub_graph: self.establishes_sub_graph,
@@ -369,7 +360,6 @@ impl PictureChainBuilder {
                         self.flags,
                         prim_list,
                         self.spatial_node_index,
-                        self.raster_space,
                         flags,
                         snapshot,
                     ))
@@ -378,7 +368,6 @@ impl PictureChainBuilder {
                 create_prim_instance(
                     pic_index,
                     None.into(),
-                    self.raster_space,
                     clip_node_id,
                     interners,
                     clip_tree_builder,
@@ -427,12 +416,6 @@ pub struct SceneBuilder<'a> {
 
     /// Stack of spatial node indices forming containing block for 3d contexts
     containing_block_stack: Vec<SpatialNodeIndex>,
-
-    /// Raster space in effect, one entry per open stacking context. The
-    /// values arrive already resolved on the item (see
-    /// `StackingContext::raster_space`); this only remembers the innermost one
-    /// for `add_text`.
-    raster_space_stack: Vec<RasterSpace>,
 
     /// Maintains state for any currently active shadows
 
@@ -545,7 +528,6 @@ impl<'a> SceneBuilder<'a> {
             hit_testing_scene: recycler.hit_testing_scene.take().unwrap_or_else(|| HitTestingScene::new(&stats.hit_test_stats)),
             sc_stack: mem::take(&mut recycler.sc_stack),
             containing_block_stack: mem::take(&mut recycler.containing_block_stack),
-            raster_space_stack: mem::take(&mut recycler.raster_space_stack),
             prim_store: mem::take(&mut recycler.prim_store),
             clip_store: mem::take(&mut recycler.clip_store),
             interners,
@@ -579,9 +561,6 @@ impl<'a> SceneBuilder<'a> {
         builder.containing_block_stack.clear();
         builder.id_to_index_mapper_stack.clear();
         builder.iframe_size.clear();
-
-        builder.raster_space_stack.clear();
-        builder.raster_space_stack.push(RasterSpace::Screen);
 
         builder.clip_tree_builder.begin();
 
@@ -624,7 +603,6 @@ impl<'a> SceneBuilder<'a> {
         recycler.sc_stack = builder.sc_stack;
         recycler.id_to_index_mapper_stack = builder.id_to_index_mapper_stack;
         recycler.containing_block_stack = builder.containing_block_stack;
-        recycler.raster_space_stack = builder.raster_space_stack;
         recycler.iframe_size = builder.iframe_size;
 
         BuiltScene {
@@ -945,7 +923,6 @@ impl<'a> SceneBuilder<'a> {
                             info.prim_flags,
                             spatial_node_index,
                             info.stacking_context.clip_chain_id,
-                            info.stacking_context.raster_space,
                             info.stacking_context.flags,
                         );
 
@@ -1919,9 +1896,6 @@ impl<'a> SceneBuilder<'a> {
     }
 
     /// Push a new stacking context. Returns context that must be passed to pop_stacking_context().
-    ///
-    /// `raster_space` arrives already resolved against the enclosing stacking
-    /// contexts; see `StackingContext::raster_space`.
     fn push_stacking_context(
         &mut self,
         mut composite_ops: CompositeOps,
@@ -1929,7 +1903,6 @@ impl<'a> SceneBuilder<'a> {
         prim_flags: PrimitiveFlags,
         spatial_node_index: SpatialNodeIndex,
         clip_chain_id: Option<api::ClipChainId>,
-        raster_space: RasterSpace,
         flags: StackingContextFlags,
     ) -> StackingContextInfo {
         tracy_rs::profile_scope!("push_stacking_context");
@@ -1958,7 +1931,6 @@ impl<'a> SceneBuilder<'a> {
                 prim_flags,
                 spatial_node_index,
                 clip_chain_id,
-                raster_space,
                 flags,
             );
             info.pop_stacking_context = true;
@@ -1979,8 +1951,6 @@ impl<'a> SceneBuilder<'a> {
             !composite_ops.is_empty(),
             composite_ops.snapshot.is_some(),
         );
-
-        self.raster_space_stack.push(raster_space);
 
         // Get the transform-style of the parent stacking context,
         // which determines if we *might* need to draw this on
@@ -2185,7 +2155,6 @@ impl<'a> SceneBuilder<'a> {
                 transform_style,
                 context_3d,
                 flags,
-                raster_space,
             });
         }
 
@@ -2199,9 +2168,6 @@ impl<'a> SceneBuilder<'a> {
         tracy_rs::profile_scope!("pop_stacking_context");
 
         self.clip_tree_builder.pop_clip();
-
-        // Pop off current raster space (pushed unconditionally in push_stacking_context)
-        self.raster_space_stack.pop().unwrap();
 
         // If the stacking context formed a containing block, pop off the stack
         if info.pop_containing_block {
@@ -2241,7 +2207,6 @@ impl<'a> SceneBuilder<'a> {
                         stacking_context.prim_flags,
                         stacking_context.prim_list,
                         stacking_context.spatial_node_index,
-                        stacking_context.raster_space,
                         PictureFlags::empty(),
                         None,
                     ))
@@ -2250,7 +2215,6 @@ impl<'a> SceneBuilder<'a> {
                 let instance = create_prim_instance(
                     pic_index,
                     composite_mode.into(),
-                    stacking_context.raster_space,
                     stacking_context.clip_node_id,
                     &mut self.interners,
                     &mut self.clip_tree_builder,
@@ -2260,7 +2224,6 @@ impl<'a> SceneBuilder<'a> {
                     instance,
                     stacking_context.prim_flags,
                     stacking_context.spatial_node_index,
-                    stacking_context.raster_space,
                 )
             }
             Picture3DContext::Out => {
@@ -2269,7 +2232,6 @@ impl<'a> SceneBuilder<'a> {
                         stacking_context.prim_list,
                         stacking_context.prim_flags,
                         stacking_context.spatial_node_index,
-                        stacking_context.raster_space,
                         false,
                     )
                 } else {
@@ -2286,7 +2248,6 @@ impl<'a> SceneBuilder<'a> {
                             stacking_context.prim_flags,
                             stacking_context.prim_list,
                             stacking_context.spatial_node_index,
-                            stacking_context.raster_space,
                             PictureFlags::empty(),
                             None,
                         ))
@@ -2295,7 +2256,6 @@ impl<'a> SceneBuilder<'a> {
                     let instance = create_prim_instance(
                         pic_index,
                         composite_mode.into(),
-                        stacking_context.raster_space,
                         stacking_context.clip_node_id,
                         &mut self.interners,
                         &mut self.clip_tree_builder,
@@ -2305,7 +2265,6 @@ impl<'a> SceneBuilder<'a> {
                         instance,
                         stacking_context.prim_flags,
                         stacking_context.spatial_node_index,
-                        stacking_context.raster_space,
                     )
                 }
             }
@@ -2395,7 +2354,6 @@ impl<'a> SceneBuilder<'a> {
                     stacking_context.prim_flags,
                     prim_list,
                     stacking_context.spatial_node_index,
-                    stacking_context.raster_space,
                     PictureFlags::empty(),
                     None,
                 ))
@@ -2404,7 +2362,6 @@ impl<'a> SceneBuilder<'a> {
             let instance = create_prim_instance(
                 pic_index,
                 PictureCompositeKey::Identity,
-                stacking_context.raster_space,
                 stacking_context.clip_node_id,
                 &mut self.interners,
                 &mut self.clip_tree_builder,
@@ -2414,7 +2371,6 @@ impl<'a> SceneBuilder<'a> {
                 instance,
                 stacking_context.prim_flags,
                 stacking_context.spatial_node_index,
-                stacking_context.raster_space,
             );
         }
 
@@ -2917,23 +2873,14 @@ impl<'a> SceneBuilder<'a> {
             //           primitive template.
             let glyphs = glyph_range.iter().collect();
 
-            // Query the current requested raster space (stack handled by push/pop
-            // stacking context). A blurred shadow copy overrides this with
-            // `Local(1.0)`, matching the removed `TextRun::create_shadow`: the
-            // blur picture stays in screen space, but its shadow glyphs are
-            // rasterized in local space (with texture padding, no subpixel AA).
-            let requested_raster_space = match shadow_mode {
-                GlyphShadowMode::Blurred => RasterSpace::Local(1.0),
-                GlyphShadowMode::None | GlyphShadowMode::Unblurred => {
-                    self.raster_space_stack.last().cloned().unwrap()
-                }
-            };
-
             TextRun {
                 glyphs,
                 font,
                 shadow: shadow_mode != GlyphShadowMode::None,
-                requested_raster_space,
+                // The blur picture stays in screen space, but its shadow glyphs
+                // are rasterized in local space (with texture padding, no
+                // subpixel AA), matching the removed `TextRun::create_shadow`.
+                blurred_shadow: shadow_mode == GlyphShadowMode::Blurred,
             }
         };
 
@@ -3083,7 +3030,6 @@ impl<'a> SceneBuilder<'a> {
             prim_list,
             info.flags,
             filter_spatial_node_index,
-            RasterSpace::Screen,
             true,
         );
 
@@ -3820,9 +3766,6 @@ struct FlattenedStackingContext {
 
     /// Flags identifying the type of container (among other things) this stacking context is
     flags: StackingContextFlags,
-
-    /// Requested raster space for this stacking context
-    raster_space: RasterSpace,
 }
 
 impl FlattenedStackingContext {
@@ -3903,7 +3846,6 @@ impl FlattenedStackingContext {
                 self.prim_flags,
                 mem::replace(&mut self.prim_list, PrimitiveList::empty()),
                 self.spatial_node_index,
-                self.raster_space,
                 PictureFlags::empty(),
                 None
             ))
@@ -3912,7 +3854,6 @@ impl FlattenedStackingContext {
         let prim_instance = create_prim_instance(
             pic_index,
             composite_mode.into(),
-            self.raster_space,
             self.clip_node_id,
             interners,
             clip_tree_builder,
@@ -3925,7 +3866,6 @@ impl FlattenedStackingContext {
 fn create_prim_instance(
     pic_index: PictureIndex,
     composite_mode_key: PictureCompositeKey,
-    raster_space: RasterSpace,
     clip_node_id: ClipNodeId,
     interners: &mut Interners,
     clip_tree_builder: &mut ClipTreeBuilder,
@@ -3933,7 +3873,6 @@ fn create_prim_instance(
     let pic_key = PictureKey::new(
         Picture {
             composite_mode_key,
-            raster_space,
         },
     );
 
@@ -4116,7 +4055,6 @@ pub struct SceneRecycler {
     id_to_index_mapper_stack: Vec<NodeIdToIndexMapper>,
     sc_stack: Vec<FlattenedStackingContext>,
     containing_block_stack: Vec<SpatialNodeIndex>,
-    raster_space_stack: Vec<RasterSpace>,
     iframe_size: Vec<LayoutSize>,
 }
 
@@ -4138,7 +4076,6 @@ impl SceneRecycler {
             id_to_index_mapper_stack: Vec::new(),
             sc_stack: Vec::new(),
             containing_block_stack: Vec::new(),
-            raster_space_stack: Vec::new(),
             iframe_size: Vec::new(),
         }
     }

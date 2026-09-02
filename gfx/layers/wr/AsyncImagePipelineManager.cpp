@@ -471,10 +471,7 @@ void AsyncImagePipelineManager::ApplyAsyncImageForPipeline(
 
   Maybe<wr::WrSpatialId> referenceFrameId =
       aPipeline->mDLBuilder.PushStackingContext(
-          params, wr::ToLayoutRect(aPipeline->mScBounds),
-          // This is fine to do unconditionally because we only push images
-          // here.
-          wr::RasterSpace::Screen());
+          params, wr::ToLayoutRect(aPipeline->mScBounds));
 
   Maybe<wr::SpaceAndClipChainHelper> spaceAndClipChainHelper;
   if (referenceFrameId) {

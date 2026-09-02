@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use api::{ColorF, FontInstanceFlags, GlyphInstance, RasterSpace};
+use api::{ColorF, FontInstanceFlags, GlyphInstance};
 use api::units::LayoutToWorldTransform;
 use api::units::*;
 use crate::space::SpaceSnapper;
@@ -27,6 +27,28 @@ use super::storage;
 // working.
 pub use api::key_types::GlyphInstanceAu;
 
+/// The space a run's glyphs are rasterized in, decided per frame by
+/// `TextRunTemplate::get_raster_space_for_prim`. Local raster space rasterizes
+/// the glyph with an identity transform at the given scale and lets the shader
+/// place it, which keeps glyphs stable while a transform animates and lets a
+/// bitmap strike keep its own shape.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum RasterSpace {
+    /// Rasterize with an identity glyph transform at this scale.
+    Local(f32),
+    /// Rasterize at the final device scale, with the transform baked in.
+    Screen,
+}
+
+impl RasterSpace {
+    fn local_scale(self) -> Option<f32> {
+        match self {
+            RasterSpace::Local(scale) => Some(scale),
+            RasterSpace::Screen => None,
+        }
+    }
+}
+
 /// A run of glyphs, with associated font information.
 #[cfg_attr(feature = "capture", derive(Serialize))]
 #[cfg_attr(feature = "replay", derive(Deserialize))]
@@ -41,7 +63,7 @@ pub struct TextRunKey {
     /// the prim origin are normalized the same way (see `add_text`).
     pub glyphs: Vec<GlyphInstanceAu>,
     pub shadow: bool,
-    pub requested_raster_space: RasterSpace,
+    pub blurred_shadow: bool,
 }
 
 impl TextRunKey {
@@ -65,7 +87,7 @@ impl TextRunKey {
             font: text_run.font,
             glyphs,
             shadow: text_run.shadow,
-            requested_raster_space: text_run.requested_raster_space,
+            blurred_shadow: text_run.blurred_shadow,
         }
     }
 }
@@ -85,7 +107,7 @@ pub struct TextRunTemplate {
     /// offsets handed to the shader.
     pub glyphs: Vec<GlyphInstance>,
     pub shadow: bool,
-    pub requested_raster_space: RasterSpace,
+    pub blurred_shadow: bool,
 }
 
 impl ops::Deref for TextRunTemplate {
@@ -120,7 +142,7 @@ impl From<TextRunKey> for TextRunTemplate {
             font: item.font,
             glyphs,
             shadow: item.shadow,
-            requested_raster_space: item.requested_raster_space,
+            blurred_shadow: item.blurred_shadow,
         }
     }
 }
@@ -175,7 +197,9 @@ pub struct TextRun {
     /// See [`TextRunKey::glyphs`].
     pub glyphs: Vec<GlyphInstance>,
     pub shadow: bool,
-    pub requested_raster_space: RasterSpace,
+    /// A blurred shadow copy, which rasterizes its glyphs in local space so the
+    /// blur input does not depend on the device grid.
+    pub blurred_shadow: bool,
 }
 
 impl intern::Internable for TextRun {
@@ -267,8 +291,8 @@ impl TextRunTemplate {
         raster_space: RasterSpace,
         has_bitmap_strikes: bool,
     ) -> (FontInstance, f32) {
-        // If local raster space is specified, include that in the scale
-        // of the glyphs that get rasterized.
+        // In local raster space the scale the glyphs are rasterized at is the
+        // one `get_raster_space_for_prim` picked, not the transform's.
         // TODO(gw): Once we support proper local space raster modes, this
         //           will implicitly be part of the device pixel ratio for
         //           the (cached) local space surface, and so this code
@@ -278,9 +302,9 @@ impl TextRunTemplate {
         // the raster scale. Without it the glyph is rendered at its untransformed
         // size and the shader scales that, which on the backends that resample at
         // rasterization time (Core Text, DirectWrite) is visibly soft when scaling
-        // up (bug 2064316). Only screen raster space needs this: a requested - or
-        // zoom/animation derived - local raster space carries its own scale, which
-        // is deliberately decoupled from the current transform.
+        // up (bug 2064316). Only screen raster space needs this: a local raster
+        // space carries its own scale, which is deliberately decoupled from the
+        // current transform.
         let raster_scale_input = if has_bitmap_strikes && raster_space == RasterSpace::Screen {
             transform
                 .coplanar_scale_factors()
@@ -402,11 +426,10 @@ impl TextRunTemplate {
         (used_font, raster_scale)
     }
 
-    /// Gets the raster space to use when rendering this primitive.
-    /// Usually this would be the requested raster space. However, if
-    /// the primitive's spatial node or one of its ancestors is being pinch zoomed
-    /// then we round it. This prevents us rasterizing glyphs for every minor
-    /// change in zoom level, as that would be too expensive.
+    /// Gets the raster space to use when rendering this primitive. Screen space
+    /// unless the run is a blurred shadow, or its spatial node (or an ancestor)
+    /// is pinch zooming or animating - in which case local space at a quantized
+    /// scale, so the glyphs aren't re-rasterized for every minor change.
     fn get_raster_space_for_prim(
         &self,
         prim_spatial_node_index: SpatialNodeIndex,
@@ -455,13 +478,14 @@ impl TextRunTemplate {
             let rounded_up = 2.0f32.powf(scale.log2().ceil());
 
             RasterSpace::Local(rounded_up / device_pixel_scale.0)
+        } else if self.blurred_shadow {
+            // A blurred shadow rasterizes at scale 1 in local space, so the blur
+            // input doesn't depend on the device grid. As above, undo the
+            // device-pixel scale, which `compute_font_instance` applies to the
+            // scale returned here.
+            RasterSpace::Local(1.0 / device_pixel_scale.0)
         } else {
-            // Assume that if we have a RasterSpace::Local, it is frequently changing, in which
-            // case we want to undo the device-pixel scale, as we do above.
-            match self.requested_raster_space {
-                RasterSpace::Local(scale) => RasterSpace::Local(scale / device_pixel_scale.0),
-                RasterSpace::Screen => RasterSpace::Screen,
-            }
+            RasterSpace::Screen
         }
     }
 

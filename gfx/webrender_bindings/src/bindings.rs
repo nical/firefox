@@ -2276,8 +2276,7 @@ pub extern "C" fn wr_window_new(
         false
     };
 
-    let enable_shared_instance_buffer =
-        static_prefs::pref!("gfx.webrender.shared-instance-buffer");
+    let enable_shared_instance_buffer = static_prefs::pref!("gfx.webrender.shared-instance-buffer");
 
     let opts = WebRenderOptions {
         enable_aa: true,
@@ -3223,7 +3222,6 @@ pub extern "C" fn wr_dp_push_stacking_context(
     filter_count: usize,
     filter_datas: *const WrFilterData,
     filter_datas_count: usize,
-    glyph_raster_space: RasterSpace,
 ) -> WrSpatialId {
     debug_assert!(unsafe { !is_in_render_thread() });
 
@@ -3367,7 +3365,6 @@ pub extern "C" fn wr_dp_push_stacking_context(
         params.mix_blend_mode,
         &filters,
         &r_filter_datas,
-        glyph_raster_space,
         params.flags,
         unsafe { params.snapshot.as_ref() }.cloned(),
     );

@@ -611,8 +611,7 @@ class DisplayListBuilder final {
   void End(layers::DisplayListData& aOutTransaction);
 
   Maybe<wr::WrSpatialId> PushStackingContext(
-      const StackingContextParams& aParams, const wr::LayoutRect& aBounds,
-      const wr::RasterSpace& aRasterSpace);
+      const StackingContextParams& aParams, const wr::LayoutRect& aBounds);
   void PopStackingContext(bool aIsReferenceFrame);
 
   wr::WrClipChainId DefineClipChain(Span<const wr::WrClipId> aClips,

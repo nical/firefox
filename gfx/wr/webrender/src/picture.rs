@@ -94,7 +94,6 @@
 //! blend the overlay tile (this is not always optimal right now, but will be
 //! improved as a follow up).
 
-use api::RasterSpace;
 use api::{DebugFlags, ColorF, PrimitiveFlags, SnapshotInfo};
 use api::units::*;
 use crate::command_buffer::{CommandBufferIndex, PrimitiveCommand};
@@ -595,9 +594,6 @@ pub struct PictureInstance {
     /// transform animation and/or scrolling.
     pub segments_are_valid: bool,
 
-    /// Requested raster space for this picture
-    pub raster_space: RasterSpace,
-
     /// Flags for this picture primitive
     pub flags: PictureFlags,
 
@@ -678,7 +674,6 @@ impl PictureInstance {
         prim_flags: PrimitiveFlags,
         prim_list: PrimitiveList,
         spatial_node_index: SpatialNodeIndex,
-        raster_space: RasterSpace,
         flags: PictureFlags,
         snapshot: Option<SnapshotInfo>,
     ) -> Self {
@@ -691,7 +686,6 @@ impl PictureInstance {
             spatial_node_index,
             prev_local_rect: LayoutRect::zero(),
             segments_are_valid: false,
-            raster_space,
             flags,
             clip_root: None,
             snapshot,
@@ -1327,13 +1321,6 @@ impl PictureInstance {
                             // small (bug 1899692).
                             (Scale::new(1.0), raster_spatial_node_index, true, local_scale, local_scale, (1.0, 1.0))
                         } else {
-                            // If client supplied a specific local scale, use that instead of
-                            // estimating from parent transform
-                            let world_scale_factors = match self.raster_space {
-                                RasterSpace::Screen => world_scale_factors,
-                                RasterSpace::Local(scale) => (scale, scale),
-                            };
-
                             let device_pixel_scale = Scale::new(
                                 world_scale_factors.0.max(world_scale_factors.1).min(max_scale)
                             );

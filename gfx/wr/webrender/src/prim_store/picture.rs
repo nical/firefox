@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use api::RasterSpace;
 use crate::scene_building::IsVisible;
 use crate::intern::{Internable, InternDebug, Handle as InternHandle};
 use crate::internal_types::LayoutPrimitiveInfo;
@@ -17,7 +16,6 @@ use crate::prim_store::{
 #[derive(Debug, Clone, Eq, MallocSizeOf, PartialEq, Hash)]
 pub struct Picture {
     pub composite_mode_key: PictureCompositeKey,
-    pub raster_space: RasterSpace,
 }
 
 #[cfg_attr(feature = "capture", derive(Serialize))]
@@ -25,7 +23,6 @@ pub struct Picture {
 #[derive(Debug, Clone, Eq, MallocSizeOf, PartialEq, Hash)]
 pub struct PictureKey {
     pub composite_mode_key: PictureCompositeKey,
-    pub raster_space: RasterSpace,
 }
 
 impl PictureKey {
@@ -34,7 +31,6 @@ impl PictureKey {
     ) -> Self {
         PictureKey {
             composite_mode_key: pic.composite_mode_key,
-            raster_space: pic.raster_space,
         }
     }
 }
