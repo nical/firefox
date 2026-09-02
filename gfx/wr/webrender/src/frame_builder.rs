@@ -803,6 +803,7 @@ impl FrameBuilder {
             profile.set(profiler::VIS_CLIP_PROJECTIONS, raster_clip_stats.projections);
             profile.set(profiler::VIS_CLIP_PROJECTION_FAILS, raster_clip_stats.projection_fails);
             profile.set(profiler::VIS_CLIP_REJECTS, raster_clip_stats.rejects);
+            profile.set(profiler::VIS_CLIP_INDETERMINATE, raster_clip_stats.indeterminate);
         }
 
         scene.clip_store.end_frame(&mut scratch.clip_store);
