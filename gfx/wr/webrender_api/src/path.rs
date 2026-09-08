@@ -121,7 +121,7 @@ impl PathBuilder {
         self.points.push(ctrl1);
         self.points.push(ctrl2);
         self.points.push(to);
-        self.verbs.push(Verb::QuadraticTo);
+        self.verbs.push(Verb::CubicTo);
     }
 
     pub fn build(&mut self) -> Path {
@@ -198,6 +198,7 @@ impl<'l> Iterator for PathIter<'l> {
             }
             Some(&Verb::Close) => {
                 let last = self.current;
+                self.current = self.first;
                 Some(PathEvent::End {
                     last,
                     first: self.first,

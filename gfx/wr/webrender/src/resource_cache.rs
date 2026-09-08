@@ -8,6 +8,7 @@ use api::{ExternalImageData, ExternalImageType, ExternalImageId, BlobImageResult
 use api::{DirtyRect, GlyphDimensions, IdNamespace, DEFAULT_TILE_SIZE};
 use api::{ColorF, ImageData, ImageDescriptor, ImageKey, ImageRendering, TileSize};
 use api::{BlobImageHandler, BlobImageKey, VoidPtrToSizeFn};
+use api::{Path, PathKey};
 use api::units::*;
 use euclid::size2;
 use crate::render_target::RenderTargetKind;
@@ -417,6 +418,7 @@ type ImageCache = ResourceClassCache<ImageKey, ImageResult, ()>;
 struct Resources {
     fonts: SharedFontResources,
     image_templates: ImageTemplates,
+    path_templates: FastHashMap<PathKey, Path>,
     // We keep a set of Weak references to the fonts so that we're able to include them in memory
     // reports even if only the OS is holding on to the Vec<u8>. PtrWeakHashSet will periodically
     // drop any references that have gone dead.
@@ -544,6 +546,7 @@ impl ResourceCache {
             resources: Resources {
                 fonts,
                 image_templates: ImageTemplates::default(),
+                path_templates: FastHashMap::default(),
                 weak_fonts: WeakTable::new(),
             },
             cached_glyph_dimensions: FastHashMap::default(),
@@ -888,6 +891,12 @@ impl ResourceCache {
                 ResourceUpdate::AddFontInstance(..) => {
                     // Already added in ApiResources.
                 }
+                ResourceUpdate::AddPath(path) => {
+                    self.add_path_template(path.key, path.path);
+                }
+                ResourceUpdate::DeletePath(key) => {
+                    self.delete_path_template(key);
+                }
             }
         }
     }
@@ -1075,6 +1084,21 @@ impl ResourceCache {
         if let Some(image) = self.resources.image_templates.get_mut(key) {
             image.generation.0 += 1;
         }
+    }
+
+    pub fn add_path_template(&mut self, key: PathKey, path: Path) {
+        self.resources.path_templates.insert(key, path);
+    }
+
+    pub fn delete_path_template(&mut self, key: PathKey) {
+        if self.resources.path_templates.remove(&key).is_none() {
+            warn!("Delete the non-exist path key");
+            debug!("key={:?}", key);
+        }
+    }
+
+    pub fn get_path_template(&self, key: PathKey) -> Option<&Path> {
+        self.resources.path_templates.get(&key)
     }
 
     pub fn delete_image_template(&mut self, image_key: ImageKey) {
@@ -1916,6 +1940,7 @@ impl ResourceCache {
 
     pub fn clear_namespace(&mut self, namespace: IdNamespace) {
         self.clear_images(|k| k.0 == namespace);
+        self.resources.path_templates.retain(|k, _| k.0 != namespace);
 
         // First clear out any non-shared resources associated with the namespace.
         self.resources.fonts.instances.clear_namespace(namespace);
@@ -2181,6 +2206,7 @@ pub struct PlainResources {
     font_templates: FastHashMap<FontKey, PlainFontTemplate>,
     font_instances: Vec<BaseFontInstance>,
     image_templates: FastHashMap<ImageKey, PlainImageTemplate>,
+    path_templates: FastHashMap<PathKey, Path>,
 }
 
 #[cfg(feature = "capture")]
@@ -2415,6 +2441,7 @@ impl ResourceCache {
                     })
                 })
                 .collect(),
+            path_templates: res.path_templates.clone(),
         };
 
         (resources, external_images)
@@ -2483,6 +2510,7 @@ impl ResourceCache {
         res.fonts.templates.clear();
         res.fonts.instances.clear();
         res.image_templates.images.clear();
+        res.path_templates = resources.path_templates;
 
         info!("\tfont templates...");
         let root = config.resource_root();

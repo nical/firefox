@@ -13,6 +13,7 @@ use api::{MinimapData, SnapshotImageKey};
 use crate::api::channel::{Sender, single_msg_channel, unbounded_channel};
 use crate::api::{BuiltDisplayList, IdNamespace, ExternalScrollId, Parameter, BoolParameter};
 use crate::api::{FontKey, FontInstanceKey, NativeFontHandle};
+use crate::api::{Path, PathKey};
 use crate::api::{BlobImageData, BlobImageKey, ImageData, ImageDescriptor, ImageKey, Epoch, QualitySettings};
 use crate::api::{BlobImageParams, BlobImageRequest, BlobImageResult, AsyncBlobImageRasterizer, BlobImageHandler};
 use crate::api::{DocumentId, PipelineId, PropertyBindingId, PropertyBindingKey, ExternalEvent};
@@ -88,6 +89,14 @@ pub enum ResourceUpdate {
     /// list in the transaction that contains the `DeleteImage` message and
     /// subsequent transactions.
     DeleteFontInstance(FontInstanceKey),
+    /// See `AddPath`.
+    AddPath(AddPath),
+    /// Deletes an already existing path resource.
+    ///
+    /// It is invalid to continue referring to the path key in any display list
+    /// in the transaction that contains the `DeletePath` message and subsequent
+    /// transactions.
+    DeletePath(PathKey),
 }
 
 impl fmt::Debug for ResourceUpdate {
@@ -118,6 +127,8 @@ impl fmt::Debug for ResourceUpdate {
             ResourceUpdate::DeleteFont(..) => f.write_str("ResourceUpdate::DeleteFont"),
             ResourceUpdate::AddFontInstance(..) => f.write_str("ResourceUpdate::AddFontInstance"),
             ResourceUpdate::DeleteFontInstance(..) => f.write_str("ResourceUpdate::DeleteFontInstance"),
+            ResourceUpdate::AddPath(..) => f.write_str("ResourceUpdate::AddPath"),
+            ResourceUpdate::DeletePath(..) => f.write_str("ResourceUpdate::DeletePath"),
         }
     }
 }
@@ -501,6 +512,16 @@ impl Transaction {
         self.resource_updates.push(ResourceUpdate::DeleteImage(key));
     }
 
+    /// See `ResourceUpdate::AddPath`.
+    pub fn add_path(&mut self, key: PathKey, path: Path) {
+        self.resource_updates.push(ResourceUpdate::AddPath(AddPath { key, path }));
+    }
+
+    /// See `ResourceUpdate::DeletePath`.
+    pub fn delete_path(&mut self, key: PathKey) {
+        self.resource_updates.push(ResourceUpdate::DeletePath(key));
+    }
+
     /// See `ResourceUpdate::AddBlobImage`.
     pub fn add_blob_image(
         &mut self,
@@ -745,6 +766,18 @@ pub struct UpdateImage {
     ///
     /// The data provided must still represent the entire image.
     pub dirty_rect: ImageDirtyRect,
+}
+
+/// Creates a path resource with provided parameters.
+///
+/// Must be matched with a `DeletePath` at some point to prevent memory leaks.
+#[derive(Clone)]
+#[cfg_attr(any(feature = "serde"), derive(Deserialize, Serialize))]
+pub struct AddPath {
+    /// A key to identify the path resource.
+    pub key: PathKey,
+    /// The geometry of the path.
+    pub path: Path,
 }
 
 /// Creates a blob-image resource with provided parameters.
@@ -1366,6 +1399,12 @@ impl RenderApi {
     /// Creates a `BlobImageKey`.
     pub fn generate_blob_image_key(&self) -> BlobImageKey {
         BlobImageKey(self.generate_image_key())
+    }
+
+    /// Creates a `PathKey`.
+    pub fn generate_path_key(&self) -> PathKey {
+        let new_id = self.next_unique_id();
+        PathKey::new(self.namespace_id, new_id)
     }
 
     /// A Gecko-specific notification mechanism to get some code executed on the

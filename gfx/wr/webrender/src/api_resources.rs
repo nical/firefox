@@ -158,7 +158,7 @@ impl ApiResources {
                     // We will delete from the shared font instance map in the resource cache
                     // after scene swap.
                 }
-                ResourceUpdate::DeleteImage(..) => {
+                ResourceUpdate::DeleteImage(..) | ResourceUpdate::DeletePath(..) => {
                     transaction.use_scene_builder_thread = true;
                 }
                 _ => {}
