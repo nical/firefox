@@ -93,7 +93,7 @@
 //!
 
 use api::{BorderRadius, ClipMode, ImageMask, ClipId, ClipChainId};
-use api::{FillRule, ImageKey, ImageRendering};
+use api::{FillRule, ImageKey, ImageRendering, PathKey};
 use api::units::*;
 use crate::image_tiling::{self, Repetition};
 use crate::border::BorderRadiusAu;
@@ -528,6 +528,17 @@ impl ClipTreeBuilder {
 
     /// Define a image mask clip
     pub fn define_image_mask_clip(
+        &mut self,
+        id: ClipId,
+        handle: ClipDataHandle,
+        spatial_node_index: SpatialNodeIndex,
+        clip_rect: LayoutRect,
+    ) {
+        self.clip_map.insert(id, ClipEntry { handle, spatial_node_index, clip_rect: clip_rect.into(), snap_outset: 0.0 });
+    }
+
+    /// Define a path clip
+    pub fn define_path_clip(
         &mut self,
         id: ClipId,
         handle: ClipDataHandle,
@@ -983,6 +994,12 @@ impl From<ClipItemKey> for ClipNode {
             ClipItemKeyKind::ImageMask(image, _) => {
                 ClipItemKind::Image {
                     image,
+                }
+            }
+            ClipItemKeyKind::Path(path, fill_rule) => {
+                ClipItemKind::Path {
+                    path,
+                    fill_rule,
                 }
             }
         };
@@ -1455,6 +1472,9 @@ impl ClipStore {
                     }),
                 );
             }
+            ClipItemKind::Path { .. } => {
+                unimplemented!("path clips are not supported by the quad path yet");
+            }
         }
     }
 
@@ -1561,6 +1581,7 @@ impl ClipStore {
                 // inner rects for now
                 ClipItemKind::Rectangle { mode: ClipMode::ClipOut, .. } |
                 ClipItemKind::Image { .. } |
+                ClipItemKind::Path { .. } |
                 ClipItemKind::RoundedRectangle { mode: ClipMode::ClipOut, .. } => {
                     return None;
                 }
@@ -1694,7 +1715,8 @@ impl ClipStore {
                         needs_mask |= match node.item.kind {
                             ClipItemKind::Rectangle { mode: ClipMode::ClipOut, .. } |
                             ClipItemKind::RoundedRectangle { .. } |
-                            ClipItemKind::Image { .. } => {
+                            ClipItemKind::Image { .. } |
+                            ClipItemKind::Path { .. } => {
                                 true
                             }
 
@@ -1788,6 +1810,7 @@ pub enum ClipItemKeyKind {
     Rectangle(ClipMode),
     RoundedRectangle(BorderRadiusAu, LayoutSideOffsetsAu, ClipMode),
     ImageMask(ImageKey, Option<PolygonDataHandle>),
+    Path(PathKey, FillRule),
 }
 
 impl ClipItemKeyKind {
@@ -1821,7 +1844,8 @@ impl ClipItemKeyKind {
 
             ClipItemKeyKind::Rectangle(ClipMode::ClipOut) |
             ClipItemKeyKind::RoundedRectangle(..) |
-            ClipItemKeyKind::ImageMask(..) => ClipNodeKind::Complex,
+            ClipItemKeyKind::ImageMask(..) |
+            ClipItemKeyKind::Path(..) => ClipNodeKind::Complex,
         }
     }
 }
@@ -1864,6 +1888,10 @@ pub enum ClipItemKind {
     },
     Image {
         image: ImageKey,
+    },
+    Path {
+        path: PathKey,
+        fill_rule: FillRule,
     },
 }
 
@@ -1936,7 +1964,8 @@ impl ClipItemKind {
             ClipItemKind::Rectangle { mode: ClipMode::ClipOut } => None,
             ClipItemKind::RoundedRectangle { mode: ClipMode::Clip, .. } => Some(clip_rect),
             ClipItemKind::RoundedRectangle { mode: ClipMode::ClipOut, .. } => None,
-            ClipItemKind::Image { .. } => Some(clip_rect),
+            ClipItemKind::Image { .. } |
+            ClipItemKind::Path { .. } => Some(clip_rect),
         }
     }
 
@@ -1962,7 +1991,8 @@ impl ClipItemKind {
                 let inner_clip_rect = extract_inner_rect_safe(&clip_rect, &clamped, &inset);
                 (clip_rect, inner_clip_rect, mode)
             }
-            ClipItemKind::Image { .. } => {
+            ClipItemKind::Image { .. } |
+            ClipItemKind::Path { .. } => {
                 (clip_rect, None, ClipMode::Clip)
             }
         };
@@ -2078,7 +2108,8 @@ impl ClipItemKind {
                     }
                 }
             }
-            ClipItemKind::Image { .. } => {
+            ClipItemKind::Image { .. } |
+            ClipItemKind::Path { .. } => {
                 let rect = clip_rect;
                 match rect.intersection(prim_rect) {
                     Some(..) => {

@@ -96,6 +96,11 @@ impl HitTestClipNode {
                     HitTestRegion::Rectangle(clip_rect, ClipMode::Clip)
                 }
             }
+            ClipItemKeyKind::Path(..) => {
+                // The path geometry lives in the resource cache, out of reach of
+                // the hit tester, so the clip is approximated by its rect.
+                HitTestRegion::Rectangle(clip_rect, ClipMode::Clip)
+            }
         };
 
         HitTestClipNode {

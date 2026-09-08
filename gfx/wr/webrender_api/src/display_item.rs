@@ -12,6 +12,7 @@ use crate::serde::{Serialize, Deserialize};
 use crate::color::ColorF;
 use crate::image::{ColorDepth, ImageKey};
 use crate::key_types::{EdgeMask, StretchSizeKey};
+use crate::path::PathKey;
 use crate::units::*;
 use std::hash::{Hash, Hasher};
 
@@ -162,6 +163,7 @@ pub enum DisplayItem {
     RectClip(RectClipDisplayItem),
     RoundedRectClip(RoundedRectClipDisplayItem),
     ImageMaskClip(ImageMaskClipDisplayItem),
+    PathClip(PathClipDisplayItem),
     ClipChain(ClipChainItem),
 
     // Spaces and Frames that content can be scoped under.
@@ -204,6 +206,7 @@ pub enum DebugDisplayItem {
     BackdropFilter(BackdropFilterDisplayItem),
 
     ImageMaskClip(ImageMaskClipDisplayItem),
+    PathClip(PathClipDisplayItem),
     RoundedRectClip(RoundedRectClipDisplayItem),
     RectClip(RectClipDisplayItem),
     ClipChain(ClipChainItem, Vec<ClipId>),
@@ -230,6 +233,19 @@ pub struct ImageMaskClipDisplayItem {
     pub image_mask: ImageMask,
     pub fill_rule: FillRule,
 } // IMPLICIT points: Vec<LayoutPoint>
+
+/// Clips content to the interior of a path registered with `Transaction::add_path`.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
+pub struct PathClipDisplayItem {
+    pub id: ClipId,
+    pub spatial_id: SpatialId,
+    pub path: PathKey,
+    /// Rect the path is positioned in, in the spatial node's local space. The
+    /// path's coordinates are relative to the rect's origin, and content
+    /// outside of the rect is clipped out.
+    pub rect: LayoutRect,
+    pub fill_rule: FillRule,
+}
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, PeekPoke)]
 pub struct RectClipDisplayItem {
@@ -2418,6 +2434,7 @@ impl DisplayItem {
             DisplayItem::RectClip(..) => "rect_clip",
             DisplayItem::RoundedRectClip(..) => "rounded_rect_clip",
             DisplayItem::ImageMaskClip(..) => "image_mask_clip",
+            DisplayItem::PathClip(..) => "path_clip",
             DisplayItem::ClipChain(..) => "clip_chain",
             DisplayItem::ConicGradient(..) => "conic_gradient",
             DisplayItem::Gradient(..) => "gradient",
