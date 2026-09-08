@@ -46,6 +46,7 @@ use api::{APZScrollGeneration, HasScrollLinkedEffect, SpatialId, StickyFrameDesc
 use api::{ClipMode, TransformStyle, YuvColorSpace, ColorRange, YuvData, TempFilterData};
 use api::{ReferenceTransformBinding, Rotation, FillRule, SpatialTreeItem, ReferenceFrameDescriptor};
 use api::{FilterOpGraphPictureBufferId, SVGFE_GRAPH_MAX};
+use api::PathKey;
 use api::channel::{unbounded_channel, Receiver, Sender};
 use api::units::*;
 use crate::image_tiling::simplify_repeated_primitive;
@@ -1675,6 +1676,26 @@ impl<'a> SceneBuilder<'a> {
                     item.points(),
                 );
             }
+            DisplayItem::PathClip(ref info) => {
+                tracy_rs::profile_scope!("path_clip");
+
+                // As with image masks, a foreign path key is neutralized into an
+                // empty clip rather than dropped, so that later clip chain items
+                // referring to this id still resolve and the content stays clipped.
+                let (path, rect) = if validate_path_key(info.path, namespace) {
+                    (info.path, info.rect)
+                } else {
+                    (PathKey::DUMMY, LayoutRect::zero())
+                };
+
+                self.add_path_clip_node(
+                    info.id,
+                    info.spatial_id,
+                    path,
+                    rect,
+                    info.fill_rule,
+                );
+            }
             DisplayItem::RoundedRectClip(ref info) => {
                 tracy_rs::profile_scope!("rounded_clip");
 
@@ -2624,6 +2645,37 @@ impl<'a> SceneBuilder<'a> {
             handle,
             spatial_node_index,
             mask_rect,
+        );
+    }
+
+    fn add_path_clip_node(
+        &mut self,
+        new_node_id: ClipId,
+        spatial_id: SpatialId,
+        path: PathKey,
+        rect: LayoutRect,
+        fill_rule: FillRule,
+    ) {
+        let spatial_node_index = self.get_space(spatial_id);
+
+        let item = ClipItemKey {
+            kind: ClipItemKeyKind::Path(path, fill_rule),
+        };
+
+        let handle = self
+            .interners
+            .clip
+            .intern(&item, || {
+                ClipInternData {
+                    key: item,
+                }
+            });
+
+        self.clip_tree_builder.define_path_clip(
+            new_node_id,
+            handle,
+            spatial_node_index,
+            rect,
         );
     }
 
@@ -4065,6 +4117,10 @@ fn validate_resource_namespace(
 
 fn validate_image_key(key: ImageKey, namespace: IdNamespace) -> bool {
     validate_resource_namespace(key.0, namespace, "image key")
+}
+
+fn validate_path_key(key: PathKey, namespace: IdNamespace) -> bool {
+    validate_resource_namespace(key.0, namespace, "path key")
 }
 
 /// The planes a `YuvData` actually references, padded with `ImageKey::DUMMY`.

@@ -1311,6 +1311,9 @@ fn prepare_tiles(
             ClipItemKind::Image { .. } => {
                 panic!("bug: image clips unexpected in this path");
             }
+            ClipItemKind::Path { .. } => {
+                unimplemented!("path clips are not supported by the tiled quad path yet");
+            }
         }
     }
 
@@ -1959,6 +1962,9 @@ pub fn prepare_clip_task(
             //           we can better merge the logic together?
             // TODO(gw): How to efficiently handle if the image-mask rect doesn't cover local prim rect?
             return;
+        }
+        ClipItemKind::Path { .. } => {
+            unimplemented!("path clip masks are not rasterized yet");
         }
     };
 
