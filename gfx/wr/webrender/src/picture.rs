@@ -2436,6 +2436,7 @@ pub fn prepare_picture_clips(
                 &mut source_clips,
                 clip_instance,
                 clips,
+                frame_context.dl_stores,
             );
         }
 
@@ -2478,7 +2479,7 @@ pub fn prepare_picture_clips(
 
         for instance in target_masks {
             let clip_instance = frame_state.clip_store.get_instance_from_range(&clip_chain.clips_range, instance);
-            frame_state.clip_store.push_quad_clip(dest, clip_instance, clips);
+            frame_state.clip_store.push_quad_clip(dest, clip_instance, clips, frame_context.dl_stores);
         }
 
         if !use_quads {

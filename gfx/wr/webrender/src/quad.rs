@@ -1263,6 +1263,9 @@ fn prepare_tiles(
                     }
                 }
             }
+            QuadClipShape::Path { .. } => {
+                unimplemented!(); // TODO(nical)
+            }
             QuadClipShape::Mask { .. } => {
                 panic!("bug: image clips unexpected in this path");
             }
@@ -1901,6 +1904,9 @@ fn prepare_clip_task(
             //           we can better merge the logic together?
             // TODO(gw): How to efficiently handle if the image-mask rect doesn't cover local prim rect?
             return;
+        }
+        QuadClipShape::Path { .. } => {
+            unimplemented!() // TODO(nical)
         }
     };
 
