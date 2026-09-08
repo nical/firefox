@@ -4,13 +4,41 @@
 
 use crate::serde::{Serialize, Deserialize};
 use crate::units::*;
+use crate::IdNamespace;
+use peek_poke::PeekPoke;
 use std::sync::Arc;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
-pub enum FillRule {
-    EventOdd,
-    NonZero,
+/// An opaque identifier describing a path registered with WebRender.
+/// This is used as a handle to reference paths, and is used as the
+/// hash map key for the actual path storage in the `ResourceCache`.
+#[repr(C)]
+#[derive(Clone, Copy, Deserialize, Eq, Hash, MallocSizeOf, PartialEq, Serialize, PeekPoke)]
+pub struct PathKey(pub IdNamespace, pub u32);
+
+impl Default for PathKey {
+    fn default() -> Self {
+        PathKey::DUMMY
+    }
+}
+
+impl PathKey {
+    /// Placeholder path key, used to represent None.
+    pub const DUMMY: Self = PathKey(IdNamespace(0), 0);
+
+    /// Mints a new PathKey. The given ID must be unique.
+    pub fn new(namespace: IdNamespace, key: u32) -> Self {
+        PathKey(namespace, key)
+    }
+}
+
+impl std::fmt::Debug for PathKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if *self == Self::DUMMY {
+            write!(f, "<none>")
+        } else {
+            write!(f, "#{}:{}", self.0.0, self.1)
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -24,7 +52,8 @@ pub(crate) enum Verb {
     End,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Path {
     points: Arc<[LayoutPoint]>,
     verbs: Arc<[Verb]>,
