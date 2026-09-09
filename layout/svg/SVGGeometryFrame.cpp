@@ -18,6 +18,7 @@
 #include "mozilla/SVGContextPaint.h"
 #include "mozilla/SVGObserverUtils.h"
 #include "mozilla/SVGUtils.h"
+#include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/StaticPrefs_svg.h"
 #include "mozilla/dom/SVGGeometryElement.h"
 #include "mozilla/dom/SVGGraphicsElement.h"
@@ -711,8 +712,9 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
     return Err("stroke is not supported");
   }
 
-  if (StyleEffects()->HasMixBlendMode()) {
-    // FIXME: not implemented
+  // The blend itself is performed by the enclosing nsDisplayBlendMode item.
+  if (StyleEffects()->HasMixBlendMode() &&
+      !StaticPrefs::gfx_webrender_svg_shapes_blend()) {
     return Err("mix-blend-mode is not supported");
   }
 
@@ -751,11 +753,24 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
     auto color = wr::ToColorF(
         ToDeviceColor(StyleSVG()->mFill.kind.AsColor().CalcColor(this)));
     color.a *= opacity;
-    aBuilder.PushRect(wrRect, wrRect, !aItem->BackfaceIsHidden(), true, false,
-                      color);
+    aBuilder.PushRect(wrRect, wrRect, !aItem->BackfaceIsHidden(),
+                      ShouldAntiAlias(), false, color);
   }
 
   return Ok();
+}
+
+bool SVGGeometryFrame::ShouldAntiAlias() const {
+  if (!StaticPrefs::gfx_webrender_svg_shapes_crisp_edges()) {
+    return true;
+  }
+  switch (StyleSVG()->mShapeRendering) {
+    case StyleShapeRendering::Optimizespeed:
+    case StyleShapeRendering::Crispedges:
+      return false;
+    default:
+      return true;
+  }
 }
 
 void SVGGeometryFrame::PaintMarkers(gfxContext& aContext,
