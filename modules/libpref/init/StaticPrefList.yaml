@@ -8281,13 +8281,13 @@
 # WebRender image's color multiplier instead of being rasterized in a blob.
 - name: gfx.webrender.svg-images.opacity
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # <image> elements can be drawn with WebRender under a non-uniform scale.
 - name: gfx.webrender.svg-images.non-uniform-scale
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: gfx.webrender.svg-shapes
@@ -8299,14 +8299,14 @@
 # WebRender rounded rectangles.
 - name: gfx.webrender.svg-shapes.ellipses
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Solid, undashed strokes on <rect>, <circle>, <ellipse> and axis aligned
 # <line> are drawn as WebRender borders.
 - name: gfx.webrender.svg-shapes.strokes
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Linear and radial gradient fills on simple shapes are drawn with WebRender
@@ -8314,28 +8314,28 @@
 # skew).
 - name: gfx.webrender.svg-shapes.gradients
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Shapes and images with mix-blend-mode can be drawn with WebRender; the blend
 # is performed by the enclosing nsDisplayBlendMode stacking context.
 - name: gfx.webrender.svg-shapes.blend
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # shape-rendering: crispEdges / optimizeSpeed disables anti-aliasing on the
 # WebRender primitives emitted for SVG shapes.
 - name: gfx.webrender.svg-shapes.crisp-edges
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # SVG <text> with a plain opaque fill and no stroke is drawn with WebRender
 # text primitives instead of being rasterized in a blob image.
 - name: gfx.webrender.svg-text
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # SVG <text> with fill-opacity below 1 is drawn with WebRender text
@@ -8343,7 +8343,7 @@
 # blend twice, like HTML text with a translucent color does.
 - name: gfx.webrender.svg-text.fill-opacity
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # clip-path: url(#clipPath) referencing a <clipPath> with a single rect,
@@ -8351,7 +8351,7 @@
 # instead of a rasterized mask image.
 - name: gfx.webrender.svg-simple-clips
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Inside an <svg>, a clip-path that WebRender expresses natively lets its
@@ -8360,7 +8360,7 @@
 # active.
 - name: gfx.webrender.svg-mask-propagates-activity
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Items inside an <svg> that could be rendered with WebRender primitives are
