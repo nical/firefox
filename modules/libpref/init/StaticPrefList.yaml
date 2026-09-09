@@ -8302,6 +8302,13 @@
   value: false
   mirror: always
 
+# Solid, undashed strokes on <rect>, <circle>, <ellipse> and axis aligned
+# <line> are drawn as WebRender borders.
+- name: gfx.webrender.svg-shapes.strokes
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Shapes and images with mix-blend-mode can be drawn with WebRender; the blend
 # is performed by the enclosing nsDisplayBlendMode stacking context.
 - name: gfx.webrender.svg-shapes.blend

@@ -1219,9 +1219,27 @@ static ItemActivity IsItemProbablyActive(
         return ItemActivity::Must;
       }
 
-      auto activity = HasActiveChildren(*transformItem->GetChildren(), aBuilder,
-                                        aResources, aSc, aManager,
-                                        aDisplayListBuilder, aUniformlyScaled);
+      // Blob layers that are children of a non-axis-aligned transformation
+      // such as a rotation or a skew are rasterized then transformed which
+      // leads to resampling/quality issues.
+      // So shapes that merely could be active must not pull such a transform
+      // out of the blob. The scale of the transform also has to be folded
+      // into the uniform scale check that the children see.
+      bool axisAligned = !t2d.HasNonAxisAlignedTransform();
+      bool uniformlyScaled = aUniformlyScaled;
+      if (axisAligned) {
+        auto scales = t2d.ScaleFactors();
+        uniformlyScaled =
+            uniformlyScaled && fabs(scales.xScale - scales.yScale) <
+                                   0.1 * std::max(scales.xScale, scales.yScale);
+      }
+
+      auto activity = HasActiveChildren(
+          *transformItem->GetChildren(), aBuilder, aResources, aSc, aManager,
+          aDisplayListBuilder, axisAligned && uniformlyScaled);
+      if (!axisAligned && activity < ItemActivity::Must) {
+        activity = ItemActivity::No;
+      }
 
       if (transformItem->MayBeAnimated(aDisplayListBuilder)) {
         activity = CombineActivity(activity, ItemActivity::Should);

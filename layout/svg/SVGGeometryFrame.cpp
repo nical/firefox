@@ -24,6 +24,7 @@
 #include "mozilla/dom/SVGGraphicsElement.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Helpers.h"
+#include "mozilla/layers/StackingContextHelper.h"
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
 
@@ -694,6 +695,12 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
     return Err("shape is not a rect or an ellipse");
   }
 
+  // Rounded corners and borders are rendered by WebRender from axis aligned
+  // cached images; under a rotation or a skew their edges come out blurry, so
+  // only plain rect fills are drawn in that case.
+  const bool axisAligned =
+      !aSc.GetInheritedTransform().HasNonAxisAlignedTransform();
+
   if (!shape.IsRect()) {
     if (!StaticPrefs::gfx_webrender_svg_shapes_ellipses()) {
       return Err("shape is not a simple rect");
@@ -702,17 +709,70 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
     if (HasCrispEdges()) {
       return Err("rounded shape with shape-rendering: crispEdges");
     }
+    if (!axisAligned) {
+      return Err("rounded shape under a rotation or skew");
+    }
   }
 
   const nsStyleSVG* style = StyleSVG();
   MOZ_ASSERT(style);
 
-  if (!style->mFill.kind.IsColor()) {
+  SVGContextPaint* contextPaint =
+      SVGContextPaint::GetContextPaint(GetContent());
+
+  const bool hasFill = !style->mFill.kind.IsNone();
+  if (hasFill && !style->mFill.kind.IsColor()) {
     return Err("fill is not a plain color");
   }
 
-  if (!style->mStroke.kind.IsNone()) {
-    return Err("stroke is not supported");
+  // Stroke parameters, resolved up front so that the dry run rejects the same
+  // shapes as the real run.
+  const bool hasStroke = SVGUtils::HasStroke(this, contextPaint);
+  SVGContentUtils::AutoStrokeOptions strokeOptions;
+  if (hasStroke) {
+    if (!StaticPrefs::gfx_webrender_svg_shapes_strokes()) {
+      return Err("stroke is not supported");
+    }
+    if (!axisAligned) {
+      return Err("stroke under a rotation or skew");
+    }
+    if (!style->mStroke.kind.IsColor()) {
+      return Err("stroke is not a plain color");
+    }
+    if (SVGUtils::GetNonScalingStrokeTransform(this)) {
+      return Err("vector-effect: non-scaling-stroke is not supported");
+    }
+    SVGContentUtils::GetStrokeOptions(&strokeOptions, element, Style(),
+                                      contextPaint);
+    if (strokeOptions.mDashPattern) {
+      return Err("dashed strokes are not supported");
+    }
+    if (shape.IsRect() && strokeOptions.mLineJoin == JoinStyle::BEVEL) {
+      return Err("stroke-linejoin: bevel is not supported");
+    }
+    if (shape.IsRect() &&
+        strokeOptions.mLineJoin == JoinStyle::MITER_OR_BEVEL &&
+        strokeOptions.mMiterLimit < M_SQRT2) {
+      // A miter limit below sqrt(2) turns the right angle joins of a rect
+      // into bevels.
+      return Err("stroke-miterlimit below sqrt(2) is not supported");
+    }
+    if (HasCrispEdges()) {
+      // WebRender borders are always anti-aliased.
+      return Err("stroke with shape-rendering: crispEdges is not supported");
+    }
+  } else if (shape.IsLine()) {
+    // A line without a stroke draws nothing, but the item is still kept in
+    // the blob to keep this code simple.
+    return Err("line without a stroke");
+  }
+
+  if (shape.IsLine()) {
+    Point p1 = shape.Point1();
+    Point p2 = shape.Point2();
+    if (p1.x != p2.x && p1.y != p2.y) {
+      return Err("line is not axis aligned");
+    }
   }
 
   // The blend itself is performed by the enclosing nsDisplayBlendMode item.
@@ -743,33 +803,139 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
     return wr::ToLayoutRect(aRect);
   };
 
-  SVGContextPaint* contextPaint =
-      SVGContextPaint::GetContextPaint(GetContent());
-
-  // This code path doesn't support strokes so it is fine to combine the
-  // shape's opacity (which has to be applied on the result of filling and
-  // stroking) with the fill opacity.
+  // When the shape has both a fill and a stroke, CanOptimizeOpacity is false
+  // and the element opacity is applied by an enclosing nsDisplayOpacity, so
+  // folding it into the colors here is only done when there is a single
+  // paint component.
   float elemOpacity = 1.0f;
   if (SVGUtils::CanOptimizeOpacity(this)) {
     elemOpacity = StyleEffects()->mOpacity;
   }
 
-  float fillOpacity = SVGUtils::GetOpacity(style->mFillOpacity, contextPaint);
-  auto fillColor =
-      wr::ToColorF(ToDeviceColor(style->mFill.kind.AsColor().CalcColor(this)));
-  fillColor.a *= elemOpacity * fillOpacity;
-
   const bool backfaceVisible = !aItem->BackfaceIsHidden();
-  wr::LayoutRect wrRect = toDevice(shape.AsRect());
+  const bool antialias = ShouldAntiAlias();
 
-  if (shape.IsRect()) {
-    aBuilder.PushRect(wrRect, wrRect, backfaceVisible, ShouldAntiAlias(), false,
-                      fillColor);
+  auto paintFill = [&]() {
+    if (!hasFill) {
+      return;
+    }
+    float fillOpacity = SVGUtils::GetOpacity(style->mFillOpacity, contextPaint);
+    auto color = wr::ToColorF(
+        ToDeviceColor(style->mFill.kind.AsColor().CalcColor(this)));
+    color.a *= elemOpacity * fillOpacity;
+    if (color.a <= 0.0f) {
+      return;
+    }
+
+    wr::LayoutRect wrRect = toDevice(shape.AsRect());
+    if (shape.IsRect()) {
+      aBuilder.PushRect(wrRect, wrRect, backfaceVisible, antialias, false,
+                        color);
+    } else {
+      const Size& radii = shape.Radii();
+      aBuilder.PushRoundedRect(
+          wrRect, wrRect, backfaceVisible,
+          wr::LayoutSize{radii.width * scale, radii.height * scale}, color);
+    }
+  };
+
+  auto paintStroke = [&]() {
+    if (!hasStroke) {
+      return;
+    }
+    float strokeOpacity =
+        SVGUtils::GetOpacity(style->mStrokeOpacity, contextPaint);
+    auto color = wr::ToColorF(
+        ToDeviceColor(style->mStroke.kind.AsColor().CalcColor(this)));
+    color.a *= elemOpacity * strokeOpacity;
+    if (color.a <= 0.0f) {
+      return;
+    }
+
+    const float w = strokeOptions.mLineWidth;
+    const float halfW = w / 2;
+
+    if (shape.IsLine()) {
+      // An axis aligned line is a rectangle of thickness w. Square caps
+      // extend it by half the width at each end; round caps do the same and
+      // round the corners.
+      Point p1 = shape.Point1();
+      Point p2 = shape.Point2();
+      Rect rect(std::min(p1.x, p2.x), std::min(p1.y, p2.y),
+                std::abs(p2.x - p1.x), std::abs(p2.y - p1.y));
+      const bool horizontal = rect.height == 0;
+      if (horizontal) {
+        rect.Inflate(0, halfW);
+      } else {
+        rect.Inflate(halfW, 0);
+      }
+      if (strokeOptions.mLineCap != CapStyle::BUTT) {
+        if (horizontal) {
+          rect.Inflate(halfW, 0);
+        } else {
+          rect.Inflate(0, halfW);
+        }
+      }
+      if (rect.IsEmpty()) {
+        return;
+      }
+      wr::LayoutRect wrRect = toDevice(rect);
+      if (strokeOptions.mLineCap == CapStyle::ROUND) {
+        aBuilder.PushRoundedRect(wrRect, wrRect, backfaceVisible,
+                                 wr::LayoutSize{halfW * scale, halfW * scale},
+                                 color);
+      } else {
+        aBuilder.PushRect(wrRect, wrRect, backfaceVisible, antialias, false,
+                          color);
+      }
+      return;
+    }
+
+    // The stroke of a rounded rect is a border of width w around the rect
+    // inflated by w / 2. Its outer corner radius is the shape's radius plus
+    // half the stroke width. Sharp corners follow stroke-linejoin: miter
+    // joins stay square, round joins get a radius of half the stroke width.
+    Rect outer = shape.AsRect();
+    outer.Inflate(halfW);
+    Size radii = shape.Radii();
+    if (radii.width > 0 || radii.height > 0) {
+      radii.width += halfW;
+      radii.height += halfW;
+    } else if (strokeOptions.mLineJoin == JoinStyle::ROUND) {
+      radii = Size(halfW, halfW);
+    }
+
+    wr::LayoutRect wrRect = toDevice(outer);
+    float dw = w * scale;
+    wr::LayoutSideOffsets widths = {dw, dw, dw, dw};
+    wr::LayoutSize r{radii.width * scale, radii.height * scale};
+    wr::BorderRadius wrRadii = {r, r, r, r, 1.0f, 1.0f, 1.0f, 1.0f};
+    wr::BorderSide side = {color, wr::BorderStyle::Solid};
+    wr::BorderSide sides[4] = {side, side, side, side};
+    aBuilder.PushBorder(wrRect, wrRect, backfaceVisible, widths,
+                        Range<const wr::BorderSide>(sides, 4), wrRadii,
+                        wr::EmptyLayoutSideOffsets(), wr::AntialiasBorder::Yes);
+  };
+
+  uint32_t paintOrder = style->mPaintOrder;
+  if (!paintOrder) {
+    paintFill();
+    paintStroke();
   } else {
-    const Size& radii = shape.Radii();
-    aBuilder.PushRoundedRect(
-        wrRect, wrRect, backfaceVisible,
-        wr::LayoutSize{radii.width * scale, radii.height * scale}, fillColor);
+    while (paintOrder) {
+      auto component = StylePaintOrder(paintOrder & kPaintOrderMask);
+      switch (component) {
+        case StylePaintOrder::Fill:
+          paintFill();
+          break;
+        case StylePaintOrder::Stroke:
+          paintStroke();
+          break;
+        default:
+          break;
+      }
+      paintOrder >>= kPaintOrderShift;
+    }
   }
 
   return Ok();
