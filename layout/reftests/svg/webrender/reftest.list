@@ -9,3 +9,4 @@ test-pref(gfx.webrender.svg-shapes.ellipses,true) fuzzy(0-80,0-2200) == shapes-e
 test-pref(gfx.webrender.svg-shapes.strokes,true) test-pref(gfx.webrender.svg-shapes.ellipses,true) fuzzy(0-110,0-2000) == shapes-strokes.svg shapes-strokes.svg
 test-pref(gfx.webrender.svg-text,true) fuzzy(0-64,0-500) == text-simple.svg text-simple.svg
 test-pref(gfx.webrender.svg-text,true) test-pref(gfx.webrender.svg-text.fill-opacity,true) fuzzy(0-170,0-3000) == text-opacity-decorations.svg text-opacity-decorations.svg
+test-pref(gfx.webrender.svg-shapes.gradients,true) test-pref(gfx.webrender.svg-shapes.ellipses,true) test-pref(gfx.webrender.svg-shapes.strokes,true) fuzzy(0-60,0-12000) == shapes-gradients.svg shapes-gradients.svg

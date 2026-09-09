@@ -7,6 +7,7 @@
 
 // Keep others in (case-insensitive) order:
 #include "SVGAnimatedTransformList.h"
+#include "SVGGradientFrame.h"
 #include "SVGMarkerFrame.h"
 #include "gfx2DGlue.h"
 #include "gfxContext.h"
@@ -721,8 +722,17 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
       SVGContextPaint::GetContextPaint(GetContent());
 
   const bool hasFill = !style->mFill.kind.IsNone();
+  SVGGradientFrame* fillGradient = nullptr;
   if (hasFill && !style->mFill.kind.IsColor()) {
-    return Err("fill is not a plain color");
+    if (!StaticPrefs::gfx_webrender_svg_shapes_gradients() ||
+        !style->mFill.kind.IsPaintServer()) {
+      return Err("fill is not a plain color");
+    }
+    fillGradient = do_QueryFrame(
+        SVGObserverUtils::GetAndObservePaintServer(this, &nsStyleSVG::mFill));
+    if (!fillGradient) {
+      return Err("fill paint server is not a gradient");
+    }
   }
 
   // Stroke parameters, resolved up front so that the dry run rejects the same
@@ -786,6 +796,10 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
     return Err("markers are not supported");
   }
 
+  if (fillGradient && !fillGradient->GetWebRenderGradient(this, 1.0f)) {
+    return Err("gradient is not expressible with WebRender");
+  }
+
   if (aDryRun) {
     return Ok();
   }
@@ -815,28 +829,94 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
   const bool backfaceVisible = !aItem->BackfaceIsHidden();
   const bool antialias = ShouldAntiAlias();
 
+  // Fills the shape with a solid color.
+  auto pushSolidFill = [&](wr::ColorF aColor) {
+    wr::LayoutRect wrRect = toDevice(shape.AsRect());
+    if (shape.IsRect()) {
+      aBuilder.PushRect(wrRect, wrRect, backfaceVisible, antialias, false,
+                        aColor);
+    } else {
+      const Size& radii = shape.Radii();
+      aBuilder.PushRoundedRect(
+          wrRect, wrRect, backfaceVisible,
+          wr::LayoutSize{radii.width * scale, radii.height * scale}, aColor);
+    }
+  };
+
+  // Fills the shape with a gradient. Rounded shapes clip the gradient with a
+  // rounded rect clip.
+  auto pushGradientFill = [&](const SVGGradientFrame::WebRenderGradient& aG) {
+    wr::LayoutRect wrRect = toDevice(shape.AsRect());
+    Maybe<wr::SpaceAndClipChainHelper> clipHelper;
+    if (!shape.IsRect()) {
+      const Size& radii = shape.Radii();
+      wr::ComplexClipRegion region;
+      region.rect = wrRect;
+      region.radii = wr::EmptyBorderRadius();
+      wr::LayoutSize r{radii.width * scale, radii.height * scale};
+      region.radii.top_left = r;
+      region.radii.top_right = r;
+      region.radii.bottom_left = r;
+      region.radii.bottom_right = r;
+      region.inset = wr::EmptyLayoutSideOffsets();
+      region.mode = wr::ClipMode::Clip;
+      wr::WrClipId clipId = aBuilder.DefineRoundedRectClip(Nothing(), region);
+      wr::WrClipChainId chain = aBuilder.DefineClipChain(
+          {&clipId, 1}, aBuilder.CurrentClipChainIdIfNotRoot());
+      clipHelper.emplace(aBuilder, chain);
+    }
+
+    // WebRender gradient points are relative to the item's origin.
+    Point origin = shape.AsRect().TopLeft();
+    auto toItemPoint = [&](const Point& aPoint) {
+      return wr::LayoutPoint{(aPoint.x - origin.x) * scale,
+                             (aPoint.y - origin.y) * scale};
+    };
+    wr::LayoutSize tileSize{wrRect.width(), wrRect.height()};
+    wr::LayoutSize tileSpacing{0.0f, 0.0f};
+    if (aG.mIsLinear) {
+      aBuilder.PushLinearGradient(wrRect, wrRect, backfaceVisible,
+                                  toItemPoint(aG.mStart), toItemPoint(aG.mEnd),
+                                  aG.mStops, aG.mExtendMode, tileSize,
+                                  tileSpacing);
+    } else {
+      aBuilder.PushRadialGradient(
+          wrRect, wrRect, backfaceVisible, toItemPoint(aG.mCenter),
+          wr::LayoutSize{aG.mRadii.width * scale, aG.mRadii.height * scale},
+          aG.mStops, aG.mExtendMode, tileSize, tileSpacing);
+    }
+  };
+
   auto paintFill = [&]() {
     if (!hasFill) {
       return;
     }
     float fillOpacity = SVGUtils::GetOpacity(style->mFillOpacity, contextPaint);
-    auto color = wr::ToColorF(
-        ToDeviceColor(style->mFill.kind.AsColor().CalcColor(this)));
-    color.a *= elemOpacity * fillOpacity;
-    if (color.a <= 0.0f) {
+    float opacity = elemOpacity * fillOpacity;
+    if (opacity <= 0.0f) {
       return;
     }
 
-    wr::LayoutRect wrRect = toDevice(shape.AsRect());
-    if (shape.IsRect()) {
-      aBuilder.PushRect(wrRect, wrRect, backfaceVisible, antialias, false,
-                        color);
-    } else {
-      const Size& radii = shape.Radii();
-      aBuilder.PushRoundedRect(
-          wrRect, wrRect, backfaceVisible,
-          wr::LayoutSize{radii.width * scale, radii.height * scale}, color);
+    if (fillGradient) {
+      Maybe<SVGGradientFrame::WebRenderGradient> gradient =
+          fillGradient->GetWebRenderGradient(this, opacity);
+      if (!gradient) {
+        return;
+      }
+      if (gradient->mSolidColor) {
+        if (gradient->mSolidColor->a > 0.0f) {
+          pushSolidFill(wr::ToColorF(*gradient->mSolidColor));
+        }
+      } else {
+        pushGradientFill(*gradient);
+      }
+      return;
     }
+
+    auto color = wr::ToColorF(
+        ToDeviceColor(style->mFill.kind.AsColor().CalcColor(this)));
+    color.a *= opacity;
+    pushSolidFill(color);
   };
 
   auto paintStroke = [&]() {

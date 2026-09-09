@@ -8309,6 +8309,14 @@
   value: false
   mirror: always
 
+# Linear and radial gradient fills on simple shapes are drawn with WebRender
+# gradients when the gradient geometry can be expressed (no focal point, no
+# skew).
+- name: gfx.webrender.svg-shapes.gradients
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Shapes and images with mix-blend-mode can be drawn with WebRender; the blend
 # is performed by the enclosing nsDisplayBlendMode stacking context.
 - name: gfx.webrender.svg-shapes.blend
