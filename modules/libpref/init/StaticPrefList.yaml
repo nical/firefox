@@ -8296,7 +8296,7 @@
 # a lot more blob layers.
 - name: gfx.webrender.blob.relaxed-active-threshold
   type: RelaxedAtomicBool
-  value: true
+  value: false
   mirror: always
 
 - name: gfx.webrender.debug.blob.paint-flashing

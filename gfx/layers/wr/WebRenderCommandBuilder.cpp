@@ -1175,14 +1175,15 @@ static ItemActivity AssessBounds(const StackingContextHelper& aSc,
   float appUnitsPerDevPixel =
       static_cast<float>(aItem->Frame()->PresContext()->AppUnitsPerDevPixel());
 
-  float width =
-      static_cast<float>(bounds.width) * aSc.GetInheritedScale().xScale;
-  float height =
-      static_cast<float>(bounds.height) * aSc.GetInheritedScale().yScale;
+  // Size of the item in device pixels.
+  float width = static_cast<float>(bounds.width) / appUnitsPerDevPixel *
+                aSc.GetInheritedScale().xScale;
+  float height = static_cast<float>(bounds.height) / appUnitsPerDevPixel *
+                 aSc.GetInheritedScale().yScale;
 
   // Webrender doesn't handle primitives smaller than a pixel well, so
   // avoid making them active.
-  if (width >= appUnitsPerDevPixel && height >= appUnitsPerDevPixel) {
+  if (width >= 1.0f && height >= 1.0f) {
     if (aHasActivePrecedingSibling || width > largeish || height > largeish) {
       return ItemActivity::Should;
     }
@@ -1354,7 +1355,9 @@ void Grouper::ConstructGroups(nsDisplayListBuilder* aDisplayListBuilder,
       }
     }
 
-    bool isLast = it.HasNext();
+    auto next = it;
+    ++next;
+    bool isLast = next == aList->end();
 
     // WebRender's anti-aliasing approximation is not very good under
     // non-uniform scales.
