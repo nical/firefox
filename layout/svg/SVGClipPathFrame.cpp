@@ -8,6 +8,7 @@
 // Keep others in (case-insensitive) order:
 #include "AutoReferenceChainGuard.h"
 #include "ImgDrawResult.h"
+#include "gfx2DGlue.h"
 #include "gfxContext.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/SVGGeometryFrame.h"
@@ -384,6 +385,40 @@ void SVGClipPathFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
 #endif
 
 gfxMatrix SVGClipPathFrame::GetCanvasTM() { return mMatrixForChildren; }
+
+bool SVGClipPathFrame::GetSimpleClipShape(nsIFrame* aClippedFrame,
+                                          gfx::Rect* aRect, gfx::Size* aRadii) {
+  nsIFrame* singleClipPathChild = nullptr;
+  if (!IsTrivial(&singleClipPathChild) || !singleClipPathChild) {
+    return false;
+  }
+  SVGGeometryFrame* pathFrame = do_QueryFrame(singleClipPathChild);
+  if (!pathFrame || !pathFrame->StyleVisibility()->IsVisible()) {
+    return false;
+  }
+
+  auto* element = static_cast<SVGGeometryElement*>(pathFrame->GetContent());
+  SVGGeometryElement::SimpleShape shape;
+  element->GetAsSimpleShape(&shape);
+  if (!shape.IsRoundedRect()) {
+    return false;
+  }
+
+  gfxMatrix toClippedUserSpace =
+      SVGUtils::GetTransformMatrixInUserSpace(pathFrame) *
+      GetClipPathTransform(aClippedFrame);
+  if (toClippedUserSpace.IsSingular() ||
+      toClippedUserSpace.HasNonAxisAlignedTransform() ||
+      toClippedUserSpace._11 < 0 || toClippedUserSpace._22 < 0) {
+    return false;
+  }
+
+  gfxRect rect = toClippedUserSpace.TransformBounds(ThebesRect(shape.AsRect()));
+  *aRect = ToRect(rect);
+  *aRadii = gfx::Size(shape.Radii().width * toClippedUserSpace._11,
+                      shape.Radii().height * toClippedUserSpace._22);
+  return true;
+}
 
 gfxMatrix SVGClipPathFrame::GetClipPathTransform(nsIFrame* aClippedFrame) {
   gfxMatrix tm = SVGUtils::GetTransformMatrixInUserSpace(this);

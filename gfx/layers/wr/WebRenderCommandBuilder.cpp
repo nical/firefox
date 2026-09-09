@@ -20,6 +20,7 @@
 #include "mozilla/SVGGeometryFrame.h"
 #include "mozilla/SVGImageFrame.h"
 #include "mozilla/SVGTextFrame.h"
+#include "mozilla/SVGUtils.h"
 #include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/UniquePtr.h"
@@ -1313,8 +1314,15 @@ static ItemActivity IsItemProbablyActive(
         auto activity =
             HasActiveChildren(*aItem->GetChildren(), aBuilder, aResources, aSc,
                               aManager, aDisplayListBuilder, aUniformlyScaled);
-        // For masked items, don't bother with making children active since we
-        // are going to have to need to paint and upload a large mask anyway.
+        // A clip that WebRender can express natively costs nothing, so the
+        // children decide. For masked items, don't bother with making
+        // children active since we are going to have to need to paint and
+        // upload a large mask anyway.
+        if (StaticPrefs::gfx_webrender_svg_mask_propagates_activity() &&
+            SVGUtils::DetermineMaskUsage(aItem->Frame(), false)
+                .IsSimpleClipShape()) {
+          return activity;
+        }
         if (activity < ItemActivity::Must) {
           return ItemActivity::No;
         }

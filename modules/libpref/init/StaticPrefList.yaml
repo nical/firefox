@@ -8346,6 +8346,23 @@
   value: false
   mirror: always
 
+# clip-path: url(#clipPath) referencing a <clipPath> with a single rect,
+# rounded rect, circle or ellipse child becomes a native WebRender clip
+# instead of a rasterized mask image.
+- name: gfx.webrender.svg-simple-clips
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Inside an <svg>, a clip-path that WebRender expresses natively lets its
+# children decide whether they are drawn with WebRender or in a blob. When
+# false, masked and clipped subtrees stay in the blob unless a child must be
+# active.
+- name: gfx.webrender.svg-mask-propagates-activity
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Items inside an <svg> that could be rendered with WebRender primitives are
 # only pulled out of the blob image when their size exceeds this many device
 # pixels, unless they are first or last in their list. See AssessBounds in

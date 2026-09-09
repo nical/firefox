@@ -8331,11 +8331,77 @@ static Maybe<wr::WrClipChainId> CreateSimpleClipRegion(
   }
 
   const auto& clipPath = style->mClipPath;
-  const auto& shape = *clipPath.AsShape()._0;
-
   auto appUnitsPerDevPixel = frame->PresContext()->AppUnitsPerDevPixel();
+
+  if (clipPath.IsUrl()) {
+    // A trivial <clipPath> whose single child is a simple shape. The shape is
+    // in the clipped frame's user space, which is mapped to the reference
+    // frame the same way SVGIntegrationUtils positions the mask painting.
+    SVGClipPathFrame* clipPathFrame = nullptr;
+    SVGObserverUtils::GetAndObserveClipPath(frame, &clipPathFrame);
+    gfx::Rect rect;
+    gfx::Size radii;
+    if (!clipPathFrame ||
+        !clipPathFrame->GetSimpleClipShape(frame, &rect, &radii)) {
+      return Nothing();
+    }
+
+    nsPoint offsetToBoundingBox =
+        aDisplayItem.ToReferenceFrame() -
+        SVGIntegrationUtils::GetOffsetToBoundingBox(frame);
+    if (!frame->IsSVGFrame()) {
+      nsPresContext* pc = frame->PresContext();
+      offsetToBoundingBox =
+          nsPoint(pc->RoundAppUnitsToNearestDevPixels(offsetToBoundingBox.x),
+                  pc->RoundAppUnitsToNearestDevPixels(offsetToBoundingBox.y));
+    }
+    gfxPoint toUserSpace = SVGUtils::FrameSpaceInCSSPxToUserSpaceOffset(frame);
+    LayoutDevicePoint offset =
+        LayoutDevicePoint::FromAppUnits(offsetToBoundingBox,
+                                        appUnitsPerDevPixel) -
+        LayoutDevicePoint(toUserSpace.x, toUserSpace.y) *
+            frame->PresContext()->CSSToDevPixelScale().scale;
+
+    float scale = frame->PresContext()->CSSToDevPixelScale().scale;
+    rect.Scale(scale);
+    rect.MoveBy(offset.x, offset.y);
+    wr::LayoutRect wrRect = wr::ToLayoutRect(rect);
+
+    wr::WrClipId clipId{};
+    if (radii.IsEmpty()) {
+      clipId = aBuilder.DefineRectClip(Nothing(), wrRect);
+    } else {
+      wr::ComplexClipRegion region;
+      region.rect = wrRect;
+      region.radii = wr::EmptyBorderRadius();
+      wr::LayoutSize r{radii.width * scale, radii.height * scale};
+      region.radii.top_left = r;
+      region.radii.top_right = r;
+      region.radii.bottom_left = r;
+      region.radii.bottom_right = r;
+      region.inset = wr::EmptyLayoutSideOffsets();
+      region.mode = wr::ClipMode::Clip;
+      clipId = aBuilder.DefineRoundedRectClip(Nothing(), region);
+    }
+    wr::WrClipChainId clipChainId = aBuilder.DefineClipChain(
+        {&clipId, 1}, aBuilder.CurrentClipChainIdIfNotRoot());
+    return Some(clipChainId);
+  }
+
+  const auto& shape = *clipPath.AsShape()._0;
   const nsRect refBox =
       nsLayoutUtils::ComputeClipPathGeometryBox(frame, clipPath.AsShape()._1);
+
+  // The reference box of an SVG frame is in its user space, which for leaf
+  // frames does not include the frame's own position while ToReferenceFrame()
+  // does.
+  nsPoint toReferenceFrame = aDisplayItem.ToReferenceFrame();
+  if (frame->HasAnyStateBits(NS_FRAME_SVG_LAYOUT)) {
+    gfxPoint toUserSpace = SVGUtils::FrameSpaceInCSSPxToUserSpaceOffset(frame);
+    toReferenceFrame -=
+        nsPoint(nsPresContext::CSSPixelsToAppUnits(float(toUserSpace.x)),
+                nsPresContext::CSSPixelsToAppUnits(float(toUserSpace.y)));
+  }
 
   wr::WrClipId clipId{};
 
@@ -8343,7 +8409,7 @@ static Maybe<wr::WrClipChainId> CreateSimpleClipRegion(
     case StyleBasicShape::Tag::Rect: {
       const nsRect rect =
           ShapeUtils::ComputeInsetRect(shape.AsRect().rect, refBox) +
-          aDisplayItem.ToReferenceFrame();
+          toReferenceFrame;
 
       nsRectCornerRadii radii;
       if (ShapeUtils::ComputeRectRadii(shape.AsRect().round, refBox, rect,
@@ -8371,9 +8437,9 @@ static Maybe<wr::WrClipChainId> CreateSimpleClipRegion(
         radii = {radius, radius};
       }
 
-      nsRect ellipseRect(aDisplayItem.ToReferenceFrame() + center -
-                             nsPoint(radii.width, radii.height),
-                         radii * 2);
+      nsRect ellipseRect(
+          toReferenceFrame + center - nsPoint(radii.width, radii.height),
+          radii * 2);
 
       nsRectCornerRadii ellipseRadii;
       for (const auto corner : AllPhysicalHalfCorners()) {

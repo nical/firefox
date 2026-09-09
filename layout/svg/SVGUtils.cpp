@@ -33,6 +33,7 @@
 #include "mozilla/SVGObserverUtils.h"
 #include "mozilla/SVGOuterSVGFrame.h"
 #include "mozilla/SVGTextFrame.h"
+#include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/StaticPrefs_svg.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/SVGClipPathElement.h"
@@ -406,6 +407,13 @@ SVGUtils::MaskUsage SVGUtils::DetermineMaskUsage(const nsIFrame* aFrame,
       if (clipPathFrame) {
         if (clipPathFrame->IsTrivial()) {
           usage.mShouldApplyClipPath = true;
+          if (StaticPrefs::gfx_webrender_svg_simple_clips() &&
+              !usage.mShouldGenerateMaskLayer) {
+            gfx::Rect rect;
+            gfx::Size radii;
+            usage.mIsSimpleClipShape = clipPathFrame->GetSimpleClipShape(
+                const_cast<nsIFrame*>(aFrame), &rect, &radii);
+          }
         } else {
           usage.mShouldGenerateClipMaskLayer = true;
         }
