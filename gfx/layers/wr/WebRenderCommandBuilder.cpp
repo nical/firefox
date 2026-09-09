@@ -19,6 +19,7 @@
 #include "mozilla/ProfilerMarkers.h"
 #include "mozilla/SVGGeometryFrame.h"
 #include "mozilla/SVGImageFrame.h"
+#include "mozilla/SVGTextFrame.h"
 #include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/UniquePtr.h"
@@ -1281,6 +1282,18 @@ static ItemActivity IsItemProbablyActive(
                                   aDisplayListBuilder)) {
         return AssessBounds(aSc, aDisplayListBuilder, aItem,
                             aHasActivePrecedingSibling);
+      }
+
+      return ItemActivity::No;
+    }
+    case DisplayItemType::TYPE_SVG_TEXT: {
+      auto* textItem = static_cast<DisplaySVGText*>(aItem);
+      if (StaticPrefs::gfx_webrender_svg_text() &&
+          textItem->ShouldBeActive(aBuilder, aResources, aSc, aManager,
+                                   aDisplayListBuilder)) {
+        // Text is expensive to rasterize on the CPU, so it is worth a layer
+        // split whatever its size.
+        return ItemActivity::Should;
       }
 
       return ItemActivity::No;

@@ -8323,6 +8323,13 @@
   value: false
   mirror: always
 
+# SVG <text> with a plain opaque fill and no stroke is drawn with WebRender
+# text primitives instead of being rasterized in a blob image.
+- name: gfx.webrender.svg-text
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Items inside an <svg> that could be rendered with WebRender primitives are
 # only pulled out of the blob image when their size exceeds this many device
 # pixels, unless they are first or last in their list. See AssessBounds in
