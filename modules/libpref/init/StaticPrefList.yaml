@@ -8330,6 +8330,14 @@
   value: false
   mirror: always
 
+# SVG <text> with fill-opacity below 1 is drawn with WebRender text
+# primitives, folding the opacity into the glyph color. Overlapping glyphs
+# blend twice, like HTML text with a translucent color does.
+- name: gfx.webrender.svg-text.fill-opacity
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Items inside an <svg> that could be rendered with WebRender primitives are
 # only pulled out of the blob image when their size exceeds this many device
 # pixels, unless they are first or last in their list. See AssessBounds in
