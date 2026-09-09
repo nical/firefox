@@ -1,0 +1,8 @@
+# Each test renders the same file with the corresponding WebRender SVG pref on
+# (test) and off (reference), so that the native WebRender rendering is
+# compared against the blob image rendering. Fuzz accounts for anti-aliasing
+# differences between WebRender and Skia.
+
+defaults pref(gfx.webrender.svg-activity.largeish-px,0) pref(gfx.webrender.svg-activity.middle-threshold-should,false)
+
+test-pref(gfx.webrender.svg-shapes.ellipses,true) fuzzy(0-80,0-2200) == shapes-ellipses.svg shapes-ellipses.svg

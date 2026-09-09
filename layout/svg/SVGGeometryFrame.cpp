@@ -687,11 +687,21 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
 
   SVGGeometryElement* element = static_cast<SVGGeometryElement*>(GetContent());
 
-  SVGGeometryElement::SimplePath simplePath;
-  element->GetAsSimplePath(&simplePath);
+  SVGGeometryElement::SimpleShape shape;
+  element->GetAsSimpleShape(&shape);
 
-  if (!simplePath.IsRect()) {
-    return Err("path is not a simple rect");
+  if (!shape.IsRoundedRect()) {
+    return Err("shape is not a rect or an ellipse");
+  }
+
+  if (!shape.IsRect()) {
+    if (!StaticPrefs::gfx_webrender_svg_shapes_ellipses()) {
+      return Err("shape is not a simple rect");
+    }
+    // WebRender always anti-aliases rounded corners.
+    if (HasCrispEdges()) {
+      return Err("rounded shape with shape-rendering: crispEdges");
+    }
   }
 
   const nsStyleSVG* style = StyleSVG();
@@ -699,13 +709,6 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
 
   if (!style->mFill.kind.IsColor()) {
     return Err("fill is not a plain color");
-  }
-
-  switch (style->mFill.kind.tag) {
-    case StyleSVGPaintKind::Tag::Color:
-      break;
-    default:
-      return Err("fill is not a plain color");
   }
 
   if (!style->mStroke.kind.IsNone()) {
@@ -723,54 +726,68 @@ WebRenderCommandsResult SVGGeometryFrame::CreateWebRenderCommands(
     return Err("markers are not supported");
   }
 
-  if (!aDryRun) {
-    auto appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
-    float scale = (float)AppUnitsPerCSSPixel() / (float)appUnitsPerDevPx;
+  if (aDryRun) {
+    return Ok();
+  }
 
-    auto rect = simplePath.AsRect();
-    rect.Scale(scale);
+  auto appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
+  float scale = (float)AppUnitsPerCSSPixel() / (float)appUnitsPerDevPx;
+  auto offset = LayoutDevicePoint::FromAppUnits(
+      aItem->ToReferenceFrame() - GetPosition(), appUnitsPerDevPx);
 
-    auto offset = LayoutDevicePoint::FromAppUnits(
-        aItem->ToReferenceFrame() - GetPosition(), appUnitsPerDevPx);
-    rect.MoveBy(offset.x, offset.y);
+  // Converts a rect from this frame's user space to device space relative to
+  // the reference frame.
+  auto toDevice = [&](Rect aRect) {
+    aRect.Scale(scale);
+    aRect.MoveBy(offset.x, offset.y);
+    return wr::ToLayoutRect(aRect);
+  };
 
-    auto wrRect = wr::ToLayoutRect(rect);
+  SVGContextPaint* contextPaint =
+      SVGContextPaint::GetContextPaint(GetContent());
 
-    SVGContextPaint* contextPaint =
-        SVGContextPaint::GetContextPaint(GetContent());
-    // At the moment this code path doesn't support strokes so it fine to
-    // combine the rectangle's opacity (which has to be applied on the result)
-    // of (filling + stroking) with the fill opacity.
+  // This code path doesn't support strokes so it is fine to combine the
+  // shape's opacity (which has to be applied on the result of filling and
+  // stroking) with the fill opacity.
+  float elemOpacity = 1.0f;
+  if (SVGUtils::CanOptimizeOpacity(this)) {
+    elemOpacity = StyleEffects()->mOpacity;
+  }
 
-    float elemOpacity = 1.0f;
-    if (SVGUtils::CanOptimizeOpacity(this)) {
-      elemOpacity = StyleEffects()->mOpacity;
-    }
+  float fillOpacity = SVGUtils::GetOpacity(style->mFillOpacity, contextPaint);
+  auto fillColor =
+      wr::ToColorF(ToDeviceColor(style->mFill.kind.AsColor().CalcColor(this)));
+  fillColor.a *= elemOpacity * fillOpacity;
 
-    float fillOpacity = SVGUtils::GetOpacity(style->mFillOpacity, contextPaint);
-    float opacity = elemOpacity * fillOpacity;
+  const bool backfaceVisible = !aItem->BackfaceIsHidden();
+  wr::LayoutRect wrRect = toDevice(shape.AsRect());
 
-    auto color = wr::ToColorF(
-        ToDeviceColor(StyleSVG()->mFill.kind.AsColor().CalcColor(this)));
-    color.a *= opacity;
-    aBuilder.PushRect(wrRect, wrRect, !aItem->BackfaceIsHidden(),
-                      ShouldAntiAlias(), false, color);
+  if (shape.IsRect()) {
+    aBuilder.PushRect(wrRect, wrRect, backfaceVisible, ShouldAntiAlias(), false,
+                      fillColor);
+  } else {
+    const Size& radii = shape.Radii();
+    aBuilder.PushRoundedRect(
+        wrRect, wrRect, backfaceVisible,
+        wr::LayoutSize{radii.width * scale, radii.height * scale}, fillColor);
   }
 
   return Ok();
 }
 
-bool SVGGeometryFrame::ShouldAntiAlias() const {
-  if (!StaticPrefs::gfx_webrender_svg_shapes_crisp_edges()) {
-    return true;
-  }
+bool SVGGeometryFrame::HasCrispEdges() const {
   switch (StyleSVG()->mShapeRendering) {
     case StyleShapeRendering::Optimizespeed:
     case StyleShapeRendering::Crispedges:
-      return false;
-    default:
       return true;
+    default:
+      return false;
   }
+}
+
+bool SVGGeometryFrame::ShouldAntiAlias() const {
+  return !StaticPrefs::gfx_webrender_svg_shapes_crisp_edges() ||
+         !HasCrispEdges();
 }
 
 void SVGGeometryFrame::PaintMarkers(gfxContext& aContext,

@@ -193,6 +193,27 @@ void SVGRectElement::GetAsSimplePath(SimplePath* aSimplePath) {
   aSimplePath->SetRect(x, y, width, height);
 }
 
+void SVGRectElement::GetAsSimpleShape(SimpleShape* aShape) {
+  float x, y, width, height, rx, ry;
+
+  DebugOnly<bool> ok =
+      SVGGeometryProperty::ResolveAll<SVGT::X, SVGT::Y, SVGT::Width,
+                                      SVGT::Height, SVGT::Rx, SVGT::Ry>(
+          this, &x, &y, &width, &height, &rx, &ry);
+  MOZ_ASSERT(ok, "SVGGeometryProperty::ResolveAll failed");
+
+  if (width <= 0 || height <= 0) {
+    aShape->Reset();
+    return;
+  }
+
+  // Same clamping as BuildPath.
+  rx = std::clamp(rx, 0.0f, width / 2);
+  ry = std::clamp(ry, 0.0f, height / 2);
+
+  aShape->SetRoundedRect(Rect(x, y, width, height), Size(rx, ry));
+}
+
 already_AddRefed<Path> SVGRectElement::BuildPath(PathBuilder* aBuilder) {
   float x, y, width, height, rx, ry;
 

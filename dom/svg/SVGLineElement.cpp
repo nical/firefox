@@ -107,6 +107,14 @@ void SVGLineElement::GetAsSimplePath(SimplePath* aSimplePath) {
   aSimplePath->SetLine(x1, y1, x2, y2);
 }
 
+void SVGLineElement::GetAsSimpleShape(SimpleShape* aShape) {
+  float x1, y1, x2, y2;
+  GetAnimatedLengthValues(&x1, &y1, &x2, &y2, nullptr);
+
+  MaybeAdjustForZeroLength(x1, y1, x2, y2);
+  aShape->SetLine(Point(x1, y1), Point(x2, y2));
+}
+
 already_AddRefed<Path> SVGLineElement::BuildPath(PathBuilder* aBuilder) {
   float x1, y1, x2, y2;
   GetAnimatedLengthValues(&x1, &y1, &x2, &y2, nullptr);

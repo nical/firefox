@@ -8295,6 +8295,13 @@
   value: true
   mirror: always
 
+# Filled <circle>, <ellipse> and <rect> with rounded corners are drawn as
+# WebRender rounded rectangles.
+- name: gfx.webrender.svg-shapes.ellipses
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Shapes and images with mix-blend-mode can be drawn with WebRender; the blend
 # is performed by the enclosing nsDisplayBlendMode stacking context.
 - name: gfx.webrender.svg-shapes.blend

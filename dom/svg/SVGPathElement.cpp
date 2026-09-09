@@ -262,6 +262,16 @@ void SVGPathElement::GetAsSimplePath(SimplePath* aSimplePath) {
   SVGGeometryProperty::DoForComputedStyle(this, callback);
 }
 
+void SVGPathElement::GetAsSimpleShape(SimpleShape* aShape) {
+  SimplePath simplePath;
+  GetAsSimplePath(&simplePath);
+  if (simplePath.IsRect()) {
+    aShape->SetRoundedRect(simplePath.AsRect(), Size());
+  } else {
+    aShape->Reset();
+  }
+}
+
 already_AddRefed<Path> SVGPathElement::BuildPath(PathBuilder* aBuilder) {
   // The Moz2D PathBuilder that our SVGPathData will be using only cares about
   // the fill rule. However, in order to fulfill the requirements of the SVG

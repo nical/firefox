@@ -25,6 +25,9 @@ skip-if(useDrawSnapshot) include moz-only/reftest.list
 # svg-integration tests (using svg effects in e.g. HTML)
 include svg-integration/reftest.list
 
+# native WebRender rendering of SVG items vs. blob images
+include webrender/reftest.list
+
 needs-focus == autofocus-01a.svg autofocus-01-ref.svg
 needs-focus == autofocus-01b.svg autofocus-01-ref.svg
 needs-focus == autofocus-02a.svg pass.svg

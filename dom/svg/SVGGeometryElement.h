@@ -54,6 +54,7 @@ class SVGGeometryElement : public SVGGeometryElementBase {
   using Point = mozilla::gfx::Point;
   using PathBuilder = mozilla::gfx::PathBuilder;
   using Rect = mozilla::gfx::Rect;
+  using Size = mozilla::gfx::Size;
   using StrokeOptions = mozilla::gfx::StrokeOptions;
 
  public:
@@ -176,6 +177,73 @@ class SVGGeometryElement : public SVGGeometryElementBase {
   virtual void GetAsSimplePath(SimplePath* aSimplePath) {
     aSimplePath->Reset();
   }
+
+  /**
+   * Geometry that maps onto WebRender primitives: axis aligned rectangles
+   * with optional elliptical corner radii (this includes circles and
+   * ellipses, whose radii equal half their size) and axis aligned lines.
+   * All values are in the element's user space.
+   */
+  class SimpleShape {
+   public:
+    enum class Type { None, RoundedRect, Line };
+
+    bool IsShape() const { return mType != Type::None; }
+    bool IsRoundedRect() const { return mType == Type::RoundedRect; }
+    bool IsLine() const { return mType == Type::Line; }
+    // A rounded rect whose radii are all zero.
+    bool IsRect() const {
+      return mType == Type::RoundedRect && mRadii == Size();
+    }
+    // A rounded rect whose radii equal half its size.
+    bool IsEllipse() const {
+      return mType == Type::RoundedRect &&
+             mRadii == Size(mRect.width / 2, mRect.height / 2);
+    }
+
+    void SetRoundedRect(const Rect& aRect, const Size& aRadii) {
+      mRect = aRect;
+      mRadii = aRadii;
+      mType = Type::RoundedRect;
+    }
+    void SetEllipse(const Point& aCenter, const Size& aRadii) {
+      mRect = Rect(aCenter - Point(aRadii.width, aRadii.height),
+                   Size(aRadii.width * 2, aRadii.height * 2));
+      mRadii = aRadii;
+      mType = Type::RoundedRect;
+    }
+    void SetLine(const Point& aStart, const Point& aEnd) {
+      mRect = Rect(aStart, Size());
+      mEnd = aEnd;
+      mType = Type::Line;
+    }
+    void Reset() { mType = Type::None; }
+
+    const Rect& AsRect() const {
+      MOZ_ASSERT(IsRoundedRect());
+      return mRect;
+    }
+    const Size& Radii() const {
+      MOZ_ASSERT(IsRoundedRect());
+      return mRadii;
+    }
+    Point Point1() const {
+      MOZ_ASSERT(IsLine());
+      return mRect.TopLeft();
+    }
+    Point Point2() const {
+      MOZ_ASSERT(IsLine());
+      return mEnd;
+    }
+
+   private:
+    Rect mRect;
+    Size mRadii;
+    Point mEnd;
+    Type mType = Type::None;
+  };
+
+  virtual void GetAsSimpleShape(SimpleShape* aShape) { aShape->Reset(); }
 
   /**
    * Returns a Path that can be used to paint, hit-test or calculate bounds for

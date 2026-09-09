@@ -1447,9 +1447,19 @@ void DisplayListBuilder::PushRoundedRect(const wr::LayoutRect& aBounds,
                                          const wr::LayoutRect& aClip,
                                          bool aIsBackfaceVisible,
                                          const wr::ColorF& aColor) {
-  WRDL_LOG("PushRoundedRect b=%s cl=%s c=%s\n", mWrState,
+  PushRoundedRect(aBounds, aClip, aIsBackfaceVisible,
+                  wr::LayoutSize{aBounds.width() / 2, aBounds.height() / 2},
+                  aColor);
+}
+
+void DisplayListBuilder::PushRoundedRect(const wr::LayoutRect& aBounds,
+                                         const wr::LayoutRect& aClip,
+                                         bool aIsBackfaceVisible,
+                                         const wr::LayoutSize& aRadii,
+                                         const wr::ColorF& aColor) {
+  WRDL_LOG("PushRoundedRect b=%s cl=%s r=%s c=%s\n", mWrState,
            ToString(aBounds).c_str(), ToString(aClip).c_str(),
-           ToString(aColor).c_str());
+           ToString(aRadii).c_str(), ToString(aColor).c_str());
 
   // Draw the rounded rectangle as a border with rounded corners. We could also
   // draw this as a rectangle clipped to a rounded rectangle, but:
@@ -1463,7 +1473,7 @@ void DisplayListBuilder::PushRoundedRect(const wr::LayoutRect& aBounds,
   float h = aBounds.width() * 0.6f;
   float v = aBounds.height() * 0.6f;
   wr::LayoutSideOffsets widths = {v, h, v, h};
-  wr::BorderRadius radii = {{h, v}, {h, v}, {h, v}, {h, v},
+  wr::BorderRadius radii = {aRadii, aRadii, aRadii, aRadii,
                             1.0f,   1.0f,   1.0f,   1.0f};
   wr::LayoutSideOffsets inset = EmptyLayoutSideOffsets();
 
