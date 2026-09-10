@@ -1377,6 +1377,39 @@ void Grouper::ConstructGroups(nsDisplayListBuilder* aDisplayListBuilder,
   // making it active won't add extra layers.
   bool isFirst = true;
 
+  // WebRender's anti-aliasing approximation is not very good under
+  // non-uniform scales.
+  const bool uniformlyScaled =
+      fabs(aGroup->mScale.xScale - aGroup->mScale.yScale) < 0.1;
+
+  // Items in the middle of the list normally need to be "Should" active to be
+  // worth splitting the blob. When most of the list could be active, the
+  // blob would be split many times anyway, so every item that could be
+  // active is made active instead, which yields no blob at all in the best
+  // case.
+  bool lowerMiddleThreshold =
+      StaticPrefs::gfx_webrender_blob_relaxed_active_threshold();
+  uint32_t mostlyActivePercent =
+      StaticPrefs::gfx_webrender_svg_activity_mostly_active_percent();
+  if (!lowerMiddleThreshold && mostlyActivePercent > 0) {
+    uint32_t total = 0;
+    uint32_t couldBeActive = 0;
+    for (nsDisplayItem* item : *aList) {
+      if (item->GetType() == DisplayItemType::TYPE_COMPOSITOR_HITTEST_INFO ||
+          item->IsInvisible()) {
+        continue;
+      }
+      total++;
+      if (IsItemProbablyActive(item, aBuilder, aResources, aSc, manager,
+                               mDisplayListBuilder, false,
+                               uniformlyScaled) >= ItemActivity::Could) {
+        couldBeActive++;
+      }
+    }
+    lowerMiddleThreshold =
+        total > 0 && couldBeActive * 100 >= total * mostlyActivePercent;
+  }
+
   for (auto it = aList->begin(); it != aList->end(); ++it) {
     nsDisplayItem* item = *it;
     MOZ_ASSERT(item);
@@ -1402,20 +1435,12 @@ void Grouper::ConstructGroups(nsDisplayListBuilder* aDisplayListBuilder,
     ++next;
     bool isLast = next == aList->end();
 
-    // WebRender's anti-aliasing approximation is not very good under
-    // non-uniform scales.
-    bool uniformlyScaled =
-        fabs(aGroup->mScale.xScale - aGroup->mScale.yScale) < 0.1;
-
     auto activity = IsItemProbablyActive(
         item, aBuilder, aResources, aSc, manager, mDisplayListBuilder,
         encounteredActiveItem, uniformlyScaled);
-    auto threshold =
-        isFirst || isLast ||
-                StaticPrefs::
-                    gfx_webrender_blob_relaxed_active_threshold()
-            ? ItemActivity::Could
-            : ItemActivity::Should;
+    auto threshold = isFirst || isLast || lowerMiddleThreshold
+                         ? ItemActivity::Could
+                         : ItemActivity::Should;
 
     if (activity >= threshold) {
       encounteredActiveItem = true;

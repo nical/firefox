@@ -8380,6 +8380,15 @@
   value: false
   mirror: always
 
+# With middle-threshold-should on, when at least this percentage of the
+# visible items of a list could be rendered natively, the list is treated as
+# though the threshold was off, so that it produces no blob instead of many
+# small ones. 0 disables the check.
+- name: gfx.webrender.svg-activity.mostly-active-percent
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
 - name: gfx.webrender.debug.blob.paint-flashing
   type: RelaxedAtomicBool
   value: false
