@@ -808,6 +808,12 @@ bitflags! {
         /// which has no quad-shader path to fall back to: dropping that clip
         /// would not reroute it, it would lose it.
         const DISABLE_COMPOSITOR_CLIPS = (1 as u64) << 37;
+        /// Drop frames that are replaced before being rendered, instead of
+        /// drawing them offscreen to fill the persistent targets (texture cache
+        /// render tasks and picture cache tiles) they write to. Those targets
+        /// are left with stale content, so later frames render incorrectly.
+        /// Useful to benchmark frame building on its own.
+        const DISCARD_UNRENDERED_FRAMES = (1 as u64) << 38;
     }
 }
 
