@@ -65,7 +65,7 @@ use std::rc::Rc;
 #[cfg(feature = "software")]
 use std::slice;
 use std::sync::mpsc::{channel, Sender, Receiver};
-use webrender::{DebugFlags, LayerCompositor};
+use webrender::{DebugFlags, Compositor};
 use webrender::api::*;
 use webrender::render_api::*;
 use webrender::api::units::*;
@@ -350,12 +350,12 @@ impl WindowWrapper {
     }
 
     #[cfg(target_os = "windows")]
-    pub fn create_compositor(&self) -> Option<Box<dyn LayerCompositor>> {
-        Some(Box::new(WrCompositor::new(self)) as Box<dyn LayerCompositor>)
+    pub fn create_compositor(&self) -> Option<Box<dyn Compositor>> {
+        Some(Box::new(WrCompositor::new(self)) as Box<dyn Compositor>)
     }
 
     #[cfg(not(target_os = "windows"))]
-    pub fn create_compositor(&self) -> Option<Box<dyn LayerCompositor>> {
+    pub fn create_compositor(&self) -> Option<Box<dyn Compositor>> {
         None
     }
 }

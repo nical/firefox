@@ -14,6 +14,7 @@ use crate::render_api::{ApiMsg, RenderApiSender, FrameMsg, ResourceCacheInit, Wi
 use crate::render_backend_pool::{PoolMemberSetup, RenderBackendPool};
 use crate::scene_builder_thread::SceneBuilderRequest;
 use crate::composite::{CompositorKind, CompositorConfig};
+use super::layer_tree::LayerTree;
 use crate::device::{
     DeviceOptions, GpuBackendConfig, UploadMethod, UploadBufferPool, VertexUsageHint, Device, ProgramCache, TextureFilter
 };
@@ -807,6 +808,7 @@ pub fn create_webrender_instance(
         documents_seen: FastHashSet::default(),
         force_redraw: true,
         compositor_config: options.compositor_config,
+        layer_tree: LayerTree::new(),
         current_compositor_kind: compositor_kind,
         limit_sdr_yuv_external_composites: options.limit_sdr_yuv_external_composites,
         allocated_native_surfaces: FastHashSet::default(),
