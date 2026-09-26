@@ -533,13 +533,16 @@ impl Tile {
         // mode, we can always update the content with smaller dirty rects, unless there is a
         // driver bug to workaround. For native composite mode, we can only use dirty rects if
         // the compositor supports partial surface updates.
-        let (supports_dirty_rects, supports_simple_prims) = match state.composite_state.compositor_kind {
-            CompositorKind::Draw { .. } | CompositorKind::Layer { .. } => {
-                (frame_context.config.gpu_supports_render_target_partial_update, true)
+        let kind = state.composite_state.compositor_kind;
+        let (supports_dirty_rects, supports_simple_prims) = if kind.uses_native_tiles() {
+            match kind {
+                CompositorKind::Native { capabilities, .. } => {
+                    (capabilities.max_update_rects > 0, false)
+                }
+                _ => unreachable!(),
             }
-            CompositorKind::Native { capabilities, .. } => {
-                (capabilities.max_update_rects > 0, false)
-            }
+        } else {
+            (frame_context.config.gpu_supports_render_target_partial_update, true)
         };
 
         // TODO(gw): Consider using smaller tiles and/or tile splits for
@@ -609,21 +612,18 @@ impl Tile {
                     // involves drawing to a texture. Create the correct surface
                     // descriptor depending on the compositing mode that will read
                     // the output.
-                    let descriptor = match state.composite_state.compositor_kind {
-                        CompositorKind::Draw { .. } | CompositorKind::Layer { .. } => {
-                            // For a texture cache entry, create an invalid handle that
-                            // will be allocated when update_picture_cache is called.
-                            SurfaceTextureDescriptor::TextureCache {
-                                handle: None,
-                            }
+                    let descriptor = if state.composite_state.compositor_kind.uses_native_tiles() {
+                        // Create a native surface surface descriptor, but don't allocate
+                        // a surface yet. The surface is allocated *after* occlusion
+                        // culling occurs, so that only visible tiles allocate GPU memory.
+                        SurfaceTextureDescriptor::Native {
+                            id: None,
                         }
-                        CompositorKind::Native { .. } => {
-                            // Create a native surface surface descriptor, but don't allocate
-                            // a surface yet. The surface is allocated *after* occlusion
-                            // culling occurs, so that only visible tiles allocate GPU memory.
-                            SurfaceTextureDescriptor::Native {
-                                id: None,
-                            }
+                    } else {
+                        // For a texture cache entry, create an invalid handle that
+                        // will be allocated when update_picture_cache is called.
+                        SurfaceTextureDescriptor::TextureCache {
+                            handle: None,
                         }
                     };
 
@@ -1410,7 +1410,7 @@ impl TileCacheInstance {
                 // simple composite mode, the texture cache handle will expire and be collected
                 // by the texture cache. For native compositor mode, we need to explicitly
                 // invoke a callback to the client to destroy that surface.
-                if let CompositorKind::Native { .. } = frame_state.composite_state.compositor_kind {
+                if frame_state.composite_state.compositor_kind.uses_native_tiles() {
                     for tile in old_tiles.values_mut() {
                         // Only destroy native surfaces that have been allocated. It's
                         // possible for display port tiles to be created that never
@@ -1483,7 +1483,7 @@ impl TileCacheInstance {
                 // promoted directly to a compositor surface.
                 if prim_clip_chain.needs_mask {
                     let mut is_supported_rounded_rect = false;
-                    if let CompositorKind::Layer { .. } = composite_state.compositor_kind {
+                    if composite_state.compositor_kind.supports_rounded_clip_promotion() {
                         if prim_clip_chain.clips_range.count == 1 && self.compositor_clip.is_none() {
                             let clip_instance = clip_store.get_instance_from_range(&prim_clip_chain.clips_range, 0);
                             let clip_node = &data_stores.clip[clip_instance.handle];
@@ -1895,12 +1895,8 @@ impl TileCacheInstance {
         // handle to use, or allocate a new one. For existing native surfaces, we can
         // also determine whether this needs to be updated, depending on whether the
         // image generation(s) of the planes have changed since last composite.
-        let (native_surface_id, update_params) = match composite_state.compositor_kind {
-            CompositorKind::Draw { .. } | CompositorKind::Layer { .. } => {
-                (None, None)
-            }
-            CompositorKind::Native { .. } => {
-                let native_surface_size = surface_size.to_i32();
+        let (native_surface_id, update_params) = if composite_state.compositor_kind.uses_native_tiles() {
+            let native_surface_size = surface_size.to_i32();
 
                 let key = ExternalNativeSurfaceKey {
                     image_keys: *api_keys,
@@ -1982,7 +1978,8 @@ impl TileCacheInstance {
                 };
 
                 (Some(native_surface.native_surface_id), update_params)
-            }
+        } else {
+            (None, None)
         };
 
         let descriptor = ExternalSurfaceDescriptor {
