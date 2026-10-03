@@ -334,8 +334,9 @@ pub const VIS_CULLING_RECT_FALLBACKS: usize = 144;
 /// a mask is assumed. Non-zero only for a clip outside the 3D context that
 /// established the surface's raster root.
 pub const VIS_CLIP_INDETERMINATE: usize = 145;
+pub const INTERNED_PATHS: usize = 146;
 
-pub const NUM_PROFILER_EVENTS: usize = 146;
+pub const NUM_PROFILER_EVENTS: usize = 147;
 
 pub struct Profiler {
     counters: Vec<Counter>,
@@ -563,6 +564,7 @@ impl Profiler {
             int("Vis clip rejects", "", VIS_CLIP_REJECTS, Expected::none()),
             int("Vis culling rect fallbacks", "", VIS_CULLING_RECT_FALLBACKS, expected(0..1)),
             int("Vis clip indeterminate", "", VIS_CLIP_INDETERMINATE, Expected::none()),
+            int("Interned paths", "", INTERNED_PATHS, Expected::none()),
         ];
 
         let mut counters = Vec::with_capacity(profile_counters.len());
