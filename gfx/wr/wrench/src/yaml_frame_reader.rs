@@ -2040,6 +2040,26 @@ impl YamlFrameReader {
             ));
         }
 
+        if !yaml["path"].is_badvalue() {
+            assert!(clip_id.is_none(), "invalid clip definition");
+
+            let path_yaml = &yaml["path"];
+            let rect = path_yaml["rect"].as_rect().expect("path clips need a rect");
+            let data = path_yaml["data"].as_str().expect("path clips need path data");
+            let fill_rule = match path_yaml["fill-rule"].as_str() {
+                Some("evenodd") => FillRule::Evenodd,
+                Some("nonzero") | None => FillRule::Nonzero,
+                Some(other) => panic!("unknown fill rule {:?}", other),
+            };
+
+            clip_id = Some(dl.define_clip_path(
+                spatial_id,
+                &parse_svg_path(data),
+                rect,
+                fill_rule,
+            ));
+        }
+
         if !complex_clips.is_empty() {
             // Only 1 complex clip is supported per clip (todo: change yaml format)
             assert_eq!(complex_clips.len(), 1);
@@ -2409,4 +2429,58 @@ impl WrenchThing for YamlFrameReader {
             self.requested_frame -= 1;
         }
     }
+}
+
+/// Parse a subset of the SVG path syntax: absolute M, L, Q, C and Z commands
+/// with whitespace or comma separated coordinates.
+fn parse_svg_path(data: &str) -> webrender::api::Path {
+    fn next_point<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> LayoutPoint {
+        let mut coord = || -> f32 {
+            let token = tokens.next().expect("missing path coordinate");
+            token.parse().unwrap_or_else(|_| panic!("invalid path coordinate {:?}", token))
+        };
+        let x = coord();
+        let y = coord();
+        LayoutPoint::new(x, y)
+    }
+
+    let mut tokens = data
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .filter(|token| !token.is_empty());
+
+    let mut builder = PathBuilder::new();
+    let mut in_sub_path = false;
+
+    while let Some(command) = tokens.next() {
+        match command {
+            "M" => {
+                if in_sub_path {
+                    builder.end(false);
+                }
+                builder.begin(next_point(&mut tokens));
+                in_sub_path = true;
+            }
+            "L" => builder.line_to(next_point(&mut tokens)),
+            "Q" => {
+                let ctrl = next_point(&mut tokens);
+                builder.quadratic_bezier_to(ctrl, next_point(&mut tokens));
+            }
+            "C" => {
+                let ctrl1 = next_point(&mut tokens);
+                let ctrl2 = next_point(&mut tokens);
+                builder.cubic_bezier_to(ctrl1, ctrl2, next_point(&mut tokens));
+            }
+            "Z" => {
+                builder.end(true);
+                in_sub_path = false;
+            }
+            _ => panic!("unsupported path command {:?}", command),
+        }
+    }
+
+    if in_sub_path {
+        builder.end(false);
+    }
+
+    builder.build()
 }
