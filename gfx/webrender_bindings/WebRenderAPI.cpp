@@ -1369,6 +1369,16 @@ wr::WrClipId DisplayListBuilder::DefineRoundedRectClip(
       aAntiAliased);
 }
 
+wr::WrClipId DisplayListBuilder::DefinePathClip(
+    Span<const wr::PathCommand> aCommands, Span<const wr::LayoutPoint> aPoints,
+    const wr::LayoutRect& aAabb, const wr::LayoutRect& aRect,
+    wr::FillRule aFillRule) {
+  return wr_dp_define_path_clip(mWrState, mCurrentSpaceAndClipChain.space,
+                                aCommands.Elements(), aCommands.Length(),
+                                aPoints.Elements(), aPoints.Length(), aAabb,
+                                aRect, aFillRule);
+}
+
 wr::WrClipId DisplayListBuilder::DefineRectClip(Maybe<wr::WrSpatialId> aSpace,
                                                 wr::LayoutRect aClipRect,
                                                 bool aAntiAliased) {

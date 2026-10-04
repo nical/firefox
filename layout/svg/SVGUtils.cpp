@@ -428,9 +428,11 @@ SVGUtils::MaskUsage SVGUtils::DetermineMaskUsage(const nsIFrame* aFrame,
     case ClipPathType::Shape: {
       usage.mShouldApplyBasicShapeOrPath = true;
       const auto& shape = svgReset->mClipPath.AsShape()._0;
+      // These are rendered with WebRender clips rather than mask images.
       usage.mIsSimpleClipShape =
           !usage.mShouldGenerateMaskLayer &&
-          (shape->IsRect() || shape->IsCircle() || shape->IsEllipse());
+          (shape->IsRect() || shape->IsCircle() || shape->IsEllipse() ||
+           (shape->IsPathOrShape() && StaticPrefs::gfx_webrender_paths()));
       break;
     }
     case ClipPathType::Box:
