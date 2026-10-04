@@ -27,6 +27,9 @@ pub(crate) enum Verb {
 pub struct Path {
     points: Arc<[LayoutPoint]>,
     verbs: Arc<[Verb]>,
+    /// Bounding box of the endpoints and control points. Derived from the
+    /// points, so it does not take part in equality and hashing.
+    aabb: LayoutRect,
 }
 
 impl PartialEq for Path {
@@ -69,7 +72,15 @@ impl Path {
         Path {
             points: Arc::new([]),
             verbs: Arc::new([]),
+            aabb: LayoutRect::zero(),
         }
+    }
+
+    /// A conservative bounding box of the path, containing its control points.
+    ///
+    /// Not finite if any of the path's points is not finite.
+    pub fn aabb(&self) -> LayoutRect {
+        self.aabb
     }
 
     pub fn iter(&self) -> PathIter {
@@ -159,9 +170,22 @@ impl PathBuilder {
 
     pub fn build(&mut self) -> Path {
         self.validator.finish();
+        let mut aabb = match self.points.first() {
+            Some(first) => self.points.iter().fold(
+                LayoutRect { min: *first, max: *first },
+                |aabb, p| LayoutRect { min: aabb.min.min(*p), max: aabb.max.max(*p) },
+            ),
+            None => LayoutRect::zero(),
+        };
+        // min and max ignore NaNs.
+        if self.points.iter().any(|p| !p.x.is_finite() || !p.y.is_finite()) {
+            aabb.min.x = f32::NAN;
+        }
+
         let path = Path {
             points: self.points.as_slice().into(),
             verbs: self.verbs.as_slice().into(),
+            aabb,
         };
 
         self.points.clear();
