@@ -30,7 +30,7 @@ scale(*) == extreme-scale-rounded-rect.yaml extreme-scale-rounded-rect.yaml
 scale(*) == different-scale-rounded-rect.yaml different-scale-rounded-rect-ref.yaml
 == clip-radius-exceeds-rect.yaml clip-radius-exceeds-rect.png
 scale(*) == flipped-rounded-rect.yaml flipped-rounded-rect-ref.yaml
-fuzzy(20,700) == path-fill-rules.yaml path-fill-rules-ref.yaml
-fuzzy(20,700) == path-large-prim.yaml path-large-prim-ref.yaml
-fuzzy(20,250) == path-and-rounded-rect.yaml path-and-rounded-rect-ref.yaml
+== path-fill-rules.yaml path-fill-rules-ref.yaml
+== path-large-prim.yaml path-large-prim-ref.yaml
+== path-and-rounded-rect.yaml path-and-rounded-rect-ref.yaml
 fuzzy(90,1600) == path-curves.yaml path-curves-ref.yaml

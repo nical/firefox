@@ -7,6 +7,9 @@
 #include gpu_buffer
 
 #define PATH_TILE_SIZE 16.0
+// Edge coordinates have 15 steps per pixel (see EDGE_STEPS_PER_PIXEL in
+// path_tiler.rs), and the unorm texels map 255 to 1.0.
+#define PATH_EDGE_SCALE (255.0 / 15.0)
 #define PATH_TILE_COORD_MASK 0x3FF
 
 #define PATH_FILL_RULE_NONZERO 1
@@ -144,7 +147,7 @@ float path_tile_coverage(
             int(uint(edge_idx) % WR_MAX_VERTEX_TEXTURE_WIDTH),
             int(uint(edge_idx) / WR_MAX_VERTEX_TEXTURE_WIDTH)
         );
-        vec4 edge = texelFetch(sPathEdges, edge_uv, 0) * PATH_TILE_SIZE;
+        vec4 edge = texelFetch(sPathEdges, edge_uv, 0) * PATH_EDGE_SCALE;
 
         // Move to coordinates local to the current pixel.
         winding_number += rasterize_edge_analytical(

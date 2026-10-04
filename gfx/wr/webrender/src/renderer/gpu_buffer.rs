@@ -745,7 +745,8 @@ impl<T> GpuBuffer<T> {
 }
 
 /// One edge of a path tile, in an RGBA8 texel: the endpoints `[x0, y0, x1, y1]`
-/// in tile-local coordinates, where 0..255 spans the tile.
+/// in tile-local coordinates with 15 steps per pixel, where 0..240 spans the
+/// tile.
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, MallocSizeOf)]
 #[cfg_attr(feature = "capture", derive(Serialize))]

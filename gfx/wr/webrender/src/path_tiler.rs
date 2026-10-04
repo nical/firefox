@@ -33,6 +33,27 @@ const LOCAL_COORD_MASK: i32 = 255;
 const LOCAL_COORD_BITS: i32 = 8;
 const COORD_SCALE: f32 = UNITS_PER_TILE_F32 / TILE_SIZE_F32;
 
+/// Edge coordinates have this many steps per pixel, so that edges on integer
+/// pixel positions are encoded exactly. Must match the scale in path_tile.glsl.
+const EDGE_STEPS_PER_PIXEL: i32 = 15;
+
+/// The largest encoded edge coordinate, which is the tile's right or bottom side.
+const MAX_EDGE_COORD: u8 = (EDGE_STEPS_PER_PIXEL * TILE_SIZE) as u8;
+
+/// Encode a tile-local fixed point coordinate (in `0..=UNITS_PER_TILE`) into an
+/// edge coordinate, in `0..=MAX_EDGE_COORD`.
+#[inline(always)]
+fn encode_edge_coord(units: i32) -> u8 {
+    ((units * MAX_EDGE_COORD as i32 + UNITS_PER_TILE / 2) >> LOCAL_COORD_BITS) as u8
+}
+
+/// Same as `encode_edge_coord`, for a coordinate that is not snapped to the
+/// fixed point grid. Values outside of the tile are clamped.
+#[inline(always)]
+fn encode_edge_coord_f32(units: f32) -> u8 {
+    (units * (MAX_EDGE_COORD as f32 / UNITS_PER_TILE_F32) + 0.5).min(MAX_EDGE_COORD as f32) as u8
+}
+
 /// Tile coordinates are encoded with 10 bits. The last row and column are
 /// reserved for the sentinel event that flushes the last tile.
 const MAX_TILES_PER_AXIS: i32 = 1023;
@@ -665,10 +686,10 @@ impl PathTiler {
             {
                 // Both endpoints are in this tile so the local coordinates
                 // are the low bits of the fixed-point coordinates.
-                let local_x0 = (from_i32_x & LOCAL_COORD_MASK) as u8;
-                let local_y0 = (from_i32_y & LOCAL_COORD_MASK) as u8;
-                let local_x1 = (to_i32_x & LOCAL_COORD_MASK) as u8;
-                let local_y1 = (to_i32_y & LOCAL_COORD_MASK) as u8;
+                let local_x0 = encode_edge_coord(from_i32_x & LOCAL_COORD_MASK);
+                let local_y0 = encode_edge_coord(from_i32_y & LOCAL_COORD_MASK);
+                let local_x1 = encode_edge_coord(to_i32_x & LOCAL_COORD_MASK);
+                let local_y1 = encode_edge_coord(to_i32_y & LOCAL_COORD_MASK);
                 self.events.push(Event::edge(
                     src_tx as u16, src_ty as u16,
                     [local_x0, local_y0, local_x1, local_y1],
@@ -762,13 +783,13 @@ impl PathTiler {
 
                 if !row_occluded {
                     let offset_y = (ty * UNITS_PER_TILE) as f32;
-                    let local_y0 = ((h_y0 * COORD_SCALE) - offset_y).min(255.0) as u8;
+                    let local_y0 = encode_edge_coord_f32((h_y0 * COORD_SCALE) - offset_y);
 
                     if !occluded {
                         let offset_x = (tx * UNITS_PER_TILE) as f32;
-                        let local_x0 = ((h_x0 * COORD_SCALE) - offset_x).min(255.0) as u8;
-                        let local_x1 = ((h_x1 * COORD_SCALE) - offset_x).min(255.0) as u8;
-                        let local_y1 = ((h_y1 * COORD_SCALE) - offset_y).min(255.0) as u8;
+                        let local_x0 = encode_edge_coord_f32((h_x0 * COORD_SCALE) - offset_x);
+                        let local_x1 = encode_edge_coord_f32((h_x1 * COORD_SCALE) - offset_x);
+                        let local_y1 = encode_edge_coord_f32((h_y1 * COORD_SCALE) - offset_y);
 
                         debug_assert!(tx < self.scissor_tiles.max.x);
                         self.events.push(Event::edge(
@@ -788,9 +809,9 @@ impl PathTiler {
 
                         if !aux_occluded {
                             let (y0, y1) = if tx < src_tx {
-                                (local_y0, 255)
+                                (local_y0, MAX_EDGE_COORD)
                             } else {
-                                (255, local_y0)
+                                (MAX_EDGE_COORD, local_y0)
                             };
                             self.events.push(Event::edge(
                                 aux_tx as u16, ty as u16,
@@ -1280,7 +1301,7 @@ mod raster_tests {
                     let end = start + tile.edge_count as usize;
                     for edge in &edges.data[start..end] {
                         let e = edge.0;
-                        let s = TILE_SIZE_F32 / 255.0;
+                        let s = 1.0 / EDGE_STEPS_PER_PIXEL as f32;
                         let p0 = (e[0] as f32 * s - uv.0 + 0.5, e[1] as f32 * s - uv.1 + 0.5);
                         let p1 = (e[2] as f32 * s - uv.0 + 0.5, e[3] as f32 * s - uv.1 + 0.5);
                         winding += rasterize_edge_analytical(p0, p1);
@@ -1449,6 +1470,47 @@ mod raster_tests {
         check(&path, &identity(), FillRule::Nonzero, 50, 45);
         let path = circle(point2(60.0, 20.0), 50.0);
         check(&path, &identity(), FillRule::Evenodd, 70, 50);
+    }
+
+    #[test]
+    fn edge_coord_encoding() {
+        assert_eq!(encode_edge_coord(0), 0);
+        assert_eq!(encode_edge_coord(UNITS_PER_TILE), MAX_EDGE_COORD);
+        assert_eq!(encode_edge_coord_f32(0.0), 0);
+        assert_eq!(encode_edge_coord_f32(-1.0), 0);
+        assert_eq!(encode_edge_coord_f32(UNITS_PER_TILE_F32), MAX_EDGE_COORD);
+        assert_eq!(encode_edge_coord_f32(1000.0), MAX_EDGE_COORD);
+        for units in 0..UNITS_PER_TILE {
+            assert_eq!(encode_edge_coord(units), encode_edge_coord_f32(units as f32));
+        }
+    }
+
+    #[test]
+    fn axis_aligned_precision() {
+        // Edges on integer pixel coordinates are encoded exactly.
+        let mut builder = PathBuilder::new();
+        builder.begin(point2(3.0, 5.0));
+        builder.line_to(point2(29.0, 5.0));
+        builder.line_to(point2(29.0, 27.0));
+        builder.line_to(point2(3.0, 27.0));
+        builder.end(true);
+        builder.begin(point2(9.0, 11.0));
+        builder.line_to(point2(9.0, 21.0));
+        builder.line_to(point2(23.0, 21.0));
+        builder.line_to(point2(23.0, 11.0));
+        builder.end(true);
+        let path = builder.build();
+
+        for &inverted in &[false, true] {
+            let actual = rasterize(&path, &identity(), FillRule::Nonzero, inverted, 40, 40);
+            let expected = reference(&path, &identity(), FillRule::Nonzero, inverted, 40, 40);
+            for (idx, (a, e)) in actual.iter().zip(expected.iter()).enumerate() {
+                assert!(
+                    (a - e).abs() < 0.001,
+                    "pixel {} {}: got {} expected {}", idx % 40, idx / 40, a, e,
+                );
+            }
+        }
     }
 
     #[test]
