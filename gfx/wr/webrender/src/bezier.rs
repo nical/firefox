@@ -97,7 +97,7 @@ fn num_cubic_segments_wang<U>(
     }
 
     // Otherwise fall back to computing via two square roots.
-    err4.sqrt().sqrt().max(1.0)
+    err4.sqrt().sqrt().ceil().max(1.0)
 }
 
 /// Use Wang's formula to compute the number of line segments required
@@ -132,7 +132,7 @@ fn num_quadratic_segments_wang<U>(from: Point<U>, ctrl: Point<U>, to: Point<U>, 
     }
 
     // Otherwise fall back to computing via two square roots.
-    err4.sqrt().sqrt().max(1.0)
+    err4.sqrt().sqrt().ceil().max(1.0)
 }
 
 
@@ -202,5 +202,45 @@ impl<U> QuadraticBezierPolynomial<U> {
         v += self.a2 * t2;
 
         v.to_point()
+    }
+}
+
+#[cfg(test)]
+fn max_flattening_error(points: &[Point<()>], sample: impl Fn(f32) -> Point<()>) -> f32 {
+    // Distance from samples of the curve to the closest segment.
+    let mut max_error: f32 = 0.0;
+    for i in 0..=1000 {
+        let p = sample(i as f32 / 1000.0);
+        let mut error = f32::MAX;
+        for segment in points.windows(2) {
+            let (a, b) = (segment[0], segment[1]);
+            let ab = b - a;
+            let t = ((p - a).dot(ab) / ab.square_length()).max(0.0).min(1.0);
+            error = error.min((a + ab * t - p).length());
+        }
+        max_error = max_error.max(error);
+    }
+    max_error
+}
+
+#[test]
+fn flattening_tolerance() {
+    use euclid::point2;
+
+    // Curves that need fewer and more segments than the lookup table covers.
+    for &scale in &[1.0, 10.0, 100.0] {
+        let from = point2(0.0, 0.0);
+        let ctrl1 = point2(100.0 * scale, 50.0 * scale);
+        let ctrl2 = point2(70.0 * scale, 200.0 * scale);
+        let to = point2(-60.0 * scale, 190.0 * scale);
+        let mut points = vec![from];
+        flatten_cubic(from, ctrl1, ctrl2, to, 0.25, &mut |p| points.push(p));
+        let cubic = CubicBezierPolynomial::new(from, ctrl1, ctrl2, to);
+        assert!(max_flattening_error(&points, |t| cubic.sample(t)) <= 0.25);
+
+        let mut points = vec![from];
+        flatten_quadratic(from, ctrl1, to, 0.25, &mut |p| points.push(p));
+        let quadratic = QuadraticBezierPolynomial::new(from, ctrl1, to);
+        assert!(max_flattening_error(&points, |t| quadratic.sample(t)) <= 0.25);
     }
 }
