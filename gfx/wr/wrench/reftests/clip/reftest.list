@@ -34,3 +34,4 @@ scale(*) == flipped-rounded-rect.yaml flipped-rounded-rect-ref.yaml
 == path-large-prim.yaml path-large-prim-ref.yaml
 == path-and-rounded-rect.yaml path-and-rounded-rect-ref.yaml
 fuzzy(90,1600) == path-curves.yaml path-curves-ref.yaml
+fuzzy(64,4200) == path-firefox-logo.yaml path-firefox-logo.png
