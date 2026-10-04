@@ -780,6 +780,8 @@ pub fn create_webrender_instance(
         gpu_buffer_texture_f_too_large: 0,
         gpu_buffer_texture_i: None,
         gpu_buffer_texture_i_too_large: 0,
+        gpu_buffer_texture_edges: None,
+        gpu_buffer_texture_edges_too_large: 0,
         vertex_data_textures,
         current_vertex_data_textures: 0,
         pipeline_info: PipelineInfo::default(),
