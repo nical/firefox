@@ -2049,6 +2049,8 @@ void WebRenderBridgeParent::UpdateParameters() {
     mLateInit->mApi->SetBatchingLookback(count);
     mLateInit->mApi->SetInt(wr::IntParameter::BatchedUploadThreshold,
                             gfxVars::WebRenderBatchedUploadThreshold());
+    mLateInit->mApi->SetInt(wr::IntParameter::PathAaSamples,
+                            gfxVars::WebRenderPathAaSamples());
     float slow_cpu_frame = gfxVars::WebRenderSlowCpuFrameThreshold();
     mLateInit->mApi->SetFloat(wr::FloatParameter::SlowCpuFrameThreshold,
                               slow_cpu_frame);
