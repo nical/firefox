@@ -8893,7 +8893,7 @@
 # and shape() with WebRender path clips instead of mask images.
 - name: gfx.webrender.paths
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # When gl debug message is a high severity message, forwward it to gfx critical
