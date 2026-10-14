@@ -34,7 +34,7 @@ TimeStamp ImageComposite::GetBiasedTime(const TimeStamp& aInput) const {
 }
 
 void ImageComposite::UpdateBias(size_t aImageIndex, bool aFrameChanged) {
-  MOZ_ASSERT(aImageIndex < ImagesCount());
+  MOZ_RELEASE_ASSERT(aImageIndex < ImagesCount());
 
   TimeStamp compositionTime = GetCompositionTime();
   TimeStamp compositedImageTime = mImages[aImageIndex].mTimeStamp;
@@ -332,7 +332,7 @@ void ImageComposite::CountSkippedFrames(const TimedImage* aImage) {
       continue;
     }
 
-    MOZ_ASSERT(next.mFrameID > img.mFrameID);
+    MOZ_RELEASE_ASSERT(next.mFrameID > img.mFrameID);
     TimeDuration duration = next.mTimeStamp - img.mTimeStamp;
     if (floor(duration.ToMilliseconds()) >= floor(targetFrameDurationMS)) {
       // Count the frame.

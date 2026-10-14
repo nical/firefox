@@ -96,7 +96,7 @@ gfx::SurfaceFormat RemoteTextureHostWrapper::GetFormat() const {
 
 void RemoteTextureHostWrapper::CreateRenderTexture(
     const wr::ExternalImageId& aExternalImageId) {
-  MOZ_ASSERT(mExternalImageId.isSome());
+  MOZ_RELEASE_ASSERT(mExternalImageId.isSome());
 
   MaybeCreateRenderTexture();
 }
@@ -105,7 +105,7 @@ void RemoteTextureHostWrapper::MaybeCreateRenderTexture() {
   if (!mRemoteTexture) {
     return;
   }
-  MOZ_ASSERT(mRemoteTexture->mExternalImageId.isSome());
+  MOZ_RELEASE_ASSERT(mRemoteTexture->mExternalImageId.isSome());
 
   // mRemoteTexture is also used for WebRender rendering.
   auto wrappedId = mRemoteTexture->mExternalImageId.ref();
@@ -137,7 +137,7 @@ void RemoteTextureHostWrapper::PushDisplayItems(
     const wr::LayoutRect& aClip, wr::ImageRendering aFilter,
     const Range<wr::ImageKey>& aImageKeys, PushDisplayItemFlagSet aFlags) {
   MOZ_ASSERT(mRemoteTexture, "TextureHost isn't valid yet");
-  MOZ_ASSERT(aImageKeys.length() > 0);
+  MOZ_RELEASE_ASSERT(aImageKeys.length() > 0);
   if (!mRemoteTexture) {
     return;
   }
@@ -160,7 +160,7 @@ void RemoteTextureHostWrapper::NotifyNotUsed() {
     // Release mRemoteTexture.
     RemoteTextureMap::Get()->ReleaseRemoteTextureHost(this);
   }
-  MOZ_ASSERT(!mRemoteTexture);
+  MOZ_RELEASE_ASSERT(!mRemoteTexture);
 
   RemoteTextureMap::Get()->UnregisterRemoteTextureHostWrapper(
       mTextureId, mOwnerId, mForPid);

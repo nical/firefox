@@ -184,7 +184,7 @@ class TextureSource : public RefCounted<TextureSource> {
 
   void ReleaseCompositableRef() {
     --mCompositableCount;
-    MOZ_ASSERT(mCompositableCount >= 0);
+    MOZ_RELEASE_ASSERT(mCompositableCount >= 0);
   }
 
   // When iterating as a BigImage, this creates temporary TextureSources
@@ -594,7 +594,7 @@ class TextureHost : public AtomicRefCountedWithFinalize<TextureHost> {
 
   void ReleaseCompositableRef() {
     --mCompositableCount;
-    MOZ_ASSERT(mCompositableCount >= 0);
+    MOZ_RELEASE_ASSERT(mCompositableCount >= 0);
     if (mCompositableCount == 0) {
       UnbindTextureSource();
       // Send mFwdTransactionId to client side if necessary.
@@ -744,7 +744,7 @@ class TextureHost : public AtomicRefCountedWithFinalize<TextureHost> {
   }
 
   void SetDestroyedCallback(std::function<void()>&& aDestroyedCallback) {
-    MOZ_ASSERT(!mDestroyedCallback);
+    MOZ_RELEASE_ASSERT(!mDestroyedCallback);
     mDestroyedCallback = std::move(aDestroyedCallback);
   }
 
@@ -1039,7 +1039,7 @@ class CompositingRenderTarget : public TextureSource {
   }
   void GetProjection(gfx::Matrix4x4& aMatrix, bool& aEnableDepth, float& aZNear,
                      float& aZFar) {
-    MOZ_ASSERT(mHasComplexProjection);
+    MOZ_RELEASE_ASSERT(mHasComplexProjection);
     aMatrix = mProjectionMatrix;
     aEnableDepth = mEnableDepthBuffer;
     aZNear = mZNear;

@@ -62,7 +62,7 @@ TextureHost* GPUVideoTextureHost::EnsureWrappedTextureHost() {
   if (mExternalImageId.isSome()) {
     // External image id is allocated by mWrappedTextureHost.
     mWrappedTextureHost->EnsureRenderTexture(Nothing());
-    MOZ_ASSERT(mWrappedTextureHost->mExternalImageId.isSome());
+    MOZ_RELEASE_ASSERT(mWrappedTextureHost->mExternalImageId.isSome());
     auto wrappedId = mWrappedTextureHost->mExternalImageId.ref();
 
     RefPtr texture = MakeRefPtr<wr::RenderTextureHostWrapper>(wrappedId);
@@ -125,7 +125,7 @@ gfx::SurfaceFormat GPUVideoTextureHost::GetFormat() const {
 
 void GPUVideoTextureHost::CreateRenderTexture(
     const wr::ExternalImageId& aExternalImageId) {
-  MOZ_ASSERT(mExternalImageId.isSome());
+  MOZ_RELEASE_ASSERT(mExternalImageId.isSome());
 
   // When mWrappedTextureHost already exist, call CreateRenderTexture() here.
   // In other cases, EnsureWrappedTextureHost() handles CreateRenderTexture().
@@ -133,7 +133,7 @@ void GPUVideoTextureHost::CreateRenderTexture(
   if (mWrappedTextureHost) {
     // External image id is allocated by mWrappedTextureHost.
     mWrappedTextureHost->EnsureRenderTexture(Nothing());
-    MOZ_ASSERT(mWrappedTextureHost->mExternalImageId.isSome());
+    MOZ_RELEASE_ASSERT(mWrappedTextureHost->mExternalImageId.isSome());
     auto wrappedId = mWrappedTextureHost->mExternalImageId.ref();
 
     RefPtr texture = MakeRefPtr<wr::RenderTextureHostWrapper>(wrappedId);
@@ -181,7 +181,7 @@ void GPUVideoTextureHost::PushDisplayItems(
     const wr::LayoutRect& aClip, wr::ImageRendering aFilter,
     const Range<wr::ImageKey>& aImageKeys, PushDisplayItemFlagSet aFlags) {
   MOZ_ASSERT(EnsureWrappedTextureHost(), "Image isn't valid yet");
-  MOZ_ASSERT(aImageKeys.length() > 0);
+  MOZ_RELEASE_ASSERT(aImageKeys.length() > 0);
   if (!EnsureWrappedTextureHost()) {
     return;
   }
