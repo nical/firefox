@@ -66,9 +66,10 @@ nsFxrCommandLineHandler::Handle(nsICommandLine* aCmdLine) {
       MOZ_CRASH("--fxr not supported without e10s");
     }
 
-    MOZ_ASSERT(mozilla::StaticPrefs::extensions_webextensions_remote(),
-               "Remote extensions are the only supported configuration on "
-               "desktop platforms");
+    MOZ_RELEASE_ASSERT(
+        mozilla::StaticPrefs::extensions_webextensions_remote(),
+        "Remote extensions are the only supported configuration on "
+        "desktop platforms");
 
     aCmdLine->SetPreventDefault(true);
 

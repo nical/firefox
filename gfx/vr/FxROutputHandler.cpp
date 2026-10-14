@@ -63,8 +63,8 @@ bool FxROutputHandler::TryInitialize(IDXGISwapChain* aSwapChain,
       shmem.PullWindowState(windowState);
 
       // The CLH should have populated hwndFx first
-      MOZ_ASSERT(windowState.hwndFx != 0);
-      MOZ_ASSERT(windowState.textureFx == nullptr);
+      MOZ_RELEASE_ASSERT(windowState.hwndFx != 0);
+      MOZ_RELEASE_ASSERT(windowState.textureFx == nullptr);
 
       windowState.textureFx = (HANDLE)hCopy;
 
@@ -88,7 +88,7 @@ bool FxROutputHandler::TryInitialize(IDXGISwapChain* aSwapChain,
 
 // Update the contents of the shared texture.
 void FxROutputHandler::UpdateOutput(ID3D11DeviceContext* aCtx) {
-  MOZ_ASSERT(mSwapChain != nullptr);
+  MOZ_RELEASE_ASSERT(mSwapChain != nullptr);
 
   ID3D11Texture2D* texOrig = nullptr;
   HRESULT hr = mSwapChain->GetBuffer(0, IID_PPV_ARGS(&texOrig));
