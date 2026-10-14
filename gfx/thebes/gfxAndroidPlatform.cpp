@@ -459,12 +459,12 @@ class AndroidVsyncSource final : public VsyncSource,
   AndroidVsyncSource() : mAndroidVsync(widget::AndroidVsync::GetInstance()) {}
 
   bool IsVsyncEnabled() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     return mObservingVsync;
   }
 
   void EnableVsync() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
     if (mObservingVsync) {
       return;
@@ -478,7 +478,7 @@ class AndroidVsyncSource final : public VsyncSource,
   }
 
   void DisableVsync() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
     if (!mObservingVsync) {
       return;

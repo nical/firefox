@@ -243,7 +243,7 @@ void gfxFontInfoLoader::FinalizeLoader(FontInfoData* aFontInfo) {
 
   mLoadTime = mFontInfo->mLoadTime;
 
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   nsCOMPtr<nsIRunnable> runnable = new FinalizeLoaderRunnable(this);
   if (NS_FAILED(NS_DispatchToCurrentThreadQueue(runnable.forget(),
                                                 PR_INTERVAL_NO_TIMEOUT,

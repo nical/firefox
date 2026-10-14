@@ -219,8 +219,8 @@ bool DeviceManagerDx::GetOutputFromMonitor(HMONITOR aMonitor,
 }
 
 void DeviceManagerDx::PostUpdateMonitorInfo() {
-  MOZ_ASSERT(XRE_IsGPUProcess());
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   MutexAutoLock lock(mDeviceLock);
   // Reduce frequency of UpdateMonitorInfo() call.
@@ -476,7 +476,7 @@ bool DeviceManagerDx::CreateCompositorDevices() {
 }
 
 bool DeviceManagerDx::CreateCompositorDevicesLocked() {
-  MOZ_ASSERT(ProcessOwnsCompositor());
+  MOZ_RELEASE_ASSERT(ProcessOwnsCompositor());
 
   FeatureState& d3d11 = gfxConfig::GetFeature(Feature::D3D11_COMPOSITING);
   MOZ_ASSERT(d3d11.IsEnabled());
@@ -523,7 +523,7 @@ bool DeviceManagerDx::CreateCompositorDevicesLocked() {
 }
 
 bool DeviceManagerDx::CreateVRDevice() {
-  MOZ_ASSERT(ProcessOwnsCompositor());
+  MOZ_RELEASE_ASSERT(ProcessOwnsCompositor());
 
   if (mVRDevice) {
     return true;
@@ -566,7 +566,7 @@ bool DeviceManagerDx::CreateCanvasDevice() {
 }
 
 bool DeviceManagerDx::CreateCanvasDeviceLocked() {
-  MOZ_ASSERT(ProcessOwnsCompositor());
+  MOZ_RELEASE_ASSERT(ProcessOwnsCompositor());
 
   if (mCanvasDevice) {
     return true;
@@ -704,7 +704,7 @@ HANDLE DeviceManagerDx::CreateDCompSurfaceHandle() {
 }
 
 void DeviceManagerDx::ImportDeviceInfo(const D3D11DeviceStatus& aDeviceStatus) {
-  MOZ_ASSERT(!ProcessOwnsCompositor());
+  MOZ_RELEASE_ASSERT(!ProcessOwnsCompositor());
 
   MutexAutoLock lock(mDeviceLock);
   mDeviceStatus = Some(aDeviceStatus);

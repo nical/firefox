@@ -182,7 +182,7 @@ class gfxCharacterMap : public gfxSparseBitSet {
 
   // Only used when clearing the shared-cmap hashtable during shutdown.
   void ClearSharedFlag() {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     mShared = false;
   }
 

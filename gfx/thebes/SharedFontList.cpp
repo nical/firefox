@@ -201,7 +201,7 @@ void Face::SetCharacterMap(FontList* aList, gfxCharacterMap* aCharMap,
 }
 
 void Family::AddFaces(FontList* aList, const nsTArray<Face::InitData>& aFaces) {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
   if (mFaceCount > 0) {
     // Already initialized!
     return;
@@ -796,7 +796,7 @@ FontList::Header& FontList::GetHeader() const MOZ_NO_THREAD_SAFETY_ANALYSIS {
 }
 
 bool FontList::AppendShmBlock(uint32_t aSizeNeeded) {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   // TODO: currently most callers of AppendShmBlock() (via Alloc()) assume
   // the allocation is infallible; hence the release-assert here is the safe
@@ -851,7 +851,7 @@ bool FontList::AppendShmBlock(uint32_t aSizeNeeded) {
 
 void FontList::ShmBlockAdded(uint32_t aGeneration, uint32_t aIndex,
                              ipc::ReadOnlySharedMemoryHandle aHandle) {
-  MOZ_ASSERT(!XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(!XRE_IsParentProcess());
   MOZ_ASSERT(mBlocks.Length() > 0);
 
   if (!aHandle) {
@@ -887,7 +887,7 @@ void FontList::DetachShmBlocks() {
 }
 
 FontList::ShmBlock* FontList::GetBlockFromParent(uint32_t aIndex) {
-  MOZ_ASSERT(!XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(!XRE_IsParentProcess());
   // If we have no existing blocks, we don't want a generation check yet;
   // the header in the first block will define the generation of this list
   uint32_t generation = aIndex == 0 ? 0 : GetGeneration();
@@ -914,7 +914,7 @@ FontList::ShmBlock* FontList::GetBlockFromParent(uint32_t aIndex) {
 // We don't take the lock when called from the constructor, so disable thread-
 // safety analysis here.
 bool FontList::UpdateShmBlocks(bool aMustLock) MOZ_NO_THREAD_SAFETY_ANALYSIS {
-  MOZ_ASSERT(!XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(!XRE_IsParentProcess());
   if (aMustLock) {
     gfxPlatformFontList::PlatformFontList()->Lock();
   }
@@ -961,7 +961,7 @@ ipc::ReadOnlySharedMemoryHandle FontList::ShareBlockToProcess(
 
 Pointer FontList::Alloc(uint32_t aSize) {
   // Only the parent process does allocation.
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   // 4-byte alignment is good enough for anything we allocate in the font list,
   // as our "Pointer" (block index/offset) is a 32-bit value even on x64.
@@ -1003,7 +1003,7 @@ Pointer FontList::Alloc(uint32_t aSize) {
 
 void FontList::SetFamilyNames(nsTArray<Family::InitData>& aFamilies) {
   // Only the parent process should ever assign the list of families.
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   Header& header = GetHeader();
   MOZ_ASSERT(!header.mFamilyCount);
@@ -1056,7 +1056,7 @@ void FontList::SetFamilyNames(nsTArray<Family::InitData>& aFamilies) {
 
 void FontList::SetAliases(
     nsClassHashtable<nsCStringHashKey, AliasData>& aAliasTable) {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   Header& header = GetHeader();
 
@@ -1117,7 +1117,7 @@ void FontList::SetAliases(
 
 void FontList::SetLocalNames(
     nsTHashMap<nsCStringHashKey, LocalFaceRec::InitData>& aLocalNameTable) {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
   Header& header = GetHeader();
   if (header.mLocalFaceCount > 0) {
     return;  // already been done!

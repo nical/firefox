@@ -1398,7 +1398,7 @@ static void InitializeANGLEConfig() {
 }
 
 void gfxWindowsPlatform::InitializeDirectDrawConfig() {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   FeatureState& ddraw = gfxConfig::GetFeature(Feature::DIRECT_DRAW);
   ddraw.EnableByDefault();
@@ -1417,7 +1417,7 @@ void gfxWindowsPlatform::InitializeConfig() {
 }
 
 void gfxWindowsPlatform::InitializeD3D11Config() {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   FeatureState& d3d11 = gfxConfig::GetFeature(Feature::D3D11_COMPOSITING);
 
@@ -1485,7 +1485,7 @@ void gfxWindowsPlatform::EnsureDevicesInitialized() {
 bool gfxWindowsPlatform::DevicesInitialized() { return mInitializedDevices; }
 
 void gfxWindowsPlatform::InitializeDevices() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   if (XRE_IsParentProcess()) {
     // If we're the UI process, and the GPU process is enabled, then we don't
@@ -1580,14 +1580,14 @@ class D3DVsyncSource final : public VsyncSource {
   }
 
   virtual void Shutdown() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     DisableVsync();
     mVsyncThread->Stop();
     delete mVsyncThread;
   }
 
   virtual void EnableVsync() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     MOZ_ASSERT(mVsyncThread->IsRunning());
     {  // scope lock
       if (mVsyncEnabled) {
@@ -1601,7 +1601,7 @@ class D3DVsyncSource final : public VsyncSource {
   }
 
   virtual void DisableVsync() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     MOZ_ASSERT(mVsyncThread->IsRunning());
     if (!mVsyncEnabled) {
       return;
@@ -1610,14 +1610,14 @@ class D3DVsyncSource final : public VsyncSource {
   }
 
   virtual bool IsVsyncEnabled() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     return mVsyncEnabled;
   }
 
   virtual TimeDuration GetVsyncRate() override { return mVsyncRate; }
 
   void ScheduleSoftwareVsync(TimeStamp aVsyncTimestamp) {
-    MOZ_ASSERT(IsInVsyncThread());
+    MOZ_RELEASE_ASSERT(IsInVsyncThread());
     NS_WARNING(
         "DwmComposition dynamically disabled, falling back to software "
         "timers");
@@ -1692,7 +1692,7 @@ class D3DVsyncSource final : public VsyncSource {
   }
 
   void VBlankLoop() {
-    MOZ_ASSERT(IsInVsyncThread());
+    MOZ_RELEASE_ASSERT(IsInVsyncThread());
     MOZ_ASSERT(sizeof(int64_t) == sizeof(QPC_TIME));
 
     TimeStamp vsync = TimeStamp::Now();
@@ -1782,7 +1782,7 @@ class D3DVsyncSource final : public VsyncSource {
       }
     }  // end for
   }
-  virtual ~D3DVsyncSource() { MOZ_ASSERT(NS_IsMainThread()); }
+  virtual ~D3DVsyncSource() { MOZ_RELEASE_ASSERT(NS_IsMainThread()); }
 
  private:
   bool IsInVsyncThread() {
@@ -1829,7 +1829,7 @@ gfxWindowsPlatform::CreateGlobalHardwareVsyncSource() {
 
 void gfxWindowsPlatform::ImportGPUDeviceData(
     const mozilla::gfx::GPUDeviceData& aData) {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   gfxPlatform::ImportGPUDeviceData(aData);
 
@@ -1854,7 +1854,7 @@ void gfxWindowsPlatform::ImportGPUDeviceData(
 
 void gfxWindowsPlatform::ImportContentDeviceData(
     const mozilla::gfx::ContentDeviceData& aData) {
-  MOZ_ASSERT(XRE_IsContentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsContentProcess());
 
   gfxPlatform::ImportContentDeviceData(aData);
 

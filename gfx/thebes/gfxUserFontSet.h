@@ -623,7 +623,7 @@ class gfxUserFontEntry : public gfxFontEntry {
   UserFontLoadState LoadState() const { return mUserFontLoadState; }
 
   void LoadCanceled() {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
     mUserFontLoadState = STATUS_NOT_LOADED;
     mFontDataLoadingState = NOT_LOADING;
@@ -676,12 +676,12 @@ class gfxUserFontEntry : public gfxFontEntry {
   // methods to expose some information to FontFaceSet::UserFontSet
   // since we can't make that class a friend
   void SetLoader(nsFontFaceLoader* aLoader) {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     mLoader = aLoader;
   }
 
   nsFontFaceLoader* GetLoader() const {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     return mLoader;
   }
 

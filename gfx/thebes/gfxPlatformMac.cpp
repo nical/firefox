@@ -744,7 +744,7 @@ static CVReturn VsyncCallback(CVDisplayLinkRef aDisplayLink,
 class OSXVsyncSource final : public VsyncSource {
  public:
   OSXVsyncSource() : mDisplayLink(nullptr, "OSXVsyncSource::mDisplayLink") {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     mTimer = NS_NewTimer();
     CGError err = CGDisplayRegisterReconfigurationCallback(
         DisplayReconfigurationCallback, this);
@@ -766,13 +766,13 @@ class OSXVsyncSource final : public VsyncSource {
   }
 
   virtual ~OSXVsyncSource() {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     Shutdown();
   }
 
   static void RetryCreateDisplayLinkAndEnableVsync(nsITimer* aTimer,
                                                    void* aOsxVsyncSource) {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     OSXVsyncSource* osxVsyncSource =
         static_cast<OSXVsyncSource*>(aOsxVsyncSource);
     MOZ_ASSERT(osxVsyncSource);
@@ -791,7 +791,7 @@ class OSXVsyncSource final : public VsyncSource {
   }
 
   void CreateDisplayLink() {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     auto displayLink = mDisplayLink.Lock();
     MOZ_ASSERT(!*displayLink);
 
@@ -839,7 +839,7 @@ class OSXVsyncSource final : public VsyncSource {
   }
 
   void DestroyDisplayLink() {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     auto displayLink = mDisplayLink.Lock();
     if (*displayLink) {
       CVDisplayLinkRelease(*displayLink);
@@ -848,7 +848,7 @@ class OSXVsyncSource final : public VsyncSource {
   }
 
   void EnableVsync() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     if (IsVsyncEnabled()) {
       return;
     }
@@ -880,7 +880,7 @@ class OSXVsyncSource final : public VsyncSource {
   }
 
   void DisableVsync() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     if (!IsVsyncEnabled()) {
       return;
     }
@@ -904,7 +904,7 @@ class OSXVsyncSource final : public VsyncSource {
   TimeDuration GetVsyncRate() override { return mVsyncRate; }
 
   void Shutdown() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     if (mTimer) {
       mTimer->Cancel();
       mTimer = nullptr;

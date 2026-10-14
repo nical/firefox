@@ -298,12 +298,12 @@ class FontList {
     // read-only.
     explicit ShmBlock(ipc::ReadOnlySharedMemoryMapping&& aShmem)
         : mShmem(std::move(aShmem)) {
-      MOZ_ASSERT(!XRE_IsParentProcess());
+      MOZ_RELEASE_ASSERT(!XRE_IsParentProcess());
     }
 
     explicit ShmBlock(ipc::SharedMemoryMapping&& aShmem)
         : mShmem(std::move(aShmem)) {
-      MOZ_ASSERT(XRE_IsParentProcess());
+      MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
     }
 
     // Get pointer to the mapped memory.
@@ -318,7 +318,7 @@ class FontList {
     }
 
     void StoreAllocated(uint32_t aSize) {
-      MOZ_ASSERT(XRE_IsParentProcess());
+      MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
       static_cast<BlockHeader*>(Memory())->mAllocated.store(aSize);
     }
 
@@ -327,7 +327,7 @@ class FontList {
     // Note that some blocks may be larger than SHM_BLOCK_SIZE, if needed for
     // individual large allocations.
     uint32_t& BlockSize() const {
-      MOZ_ASSERT(XRE_IsParentProcess());
+      MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
       return static_cast<BlockHeader*>(Memory())->mBlockSize;
     }
 

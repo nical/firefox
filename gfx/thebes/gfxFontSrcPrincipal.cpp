@@ -12,7 +12,7 @@ using mozilla::BasePrincipal;
 gfxFontSrcPrincipal::gfxFontSrcPrincipal(nsIPrincipal* aNodePrincipal,
                                          nsIPrincipal* aStoragePrincipal)
     : mNodePrincipal(aNodePrincipal), mStoragePrincipal(aStoragePrincipal) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aNodePrincipal);
   MOZ_ASSERT(aStoragePrincipal);
   mHash = mStoragePrincipal->GetHashValue();

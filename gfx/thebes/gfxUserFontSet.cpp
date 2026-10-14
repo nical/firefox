@@ -73,7 +73,7 @@ gfxUserFontEntry::gfxUserFontEntry(nsTArray<gfxFontFaceSrc>&& aFontFaceSrcList,
 }
 
 void gfxUserFontEntry::UpdateAttributes(gfxUserFontAttributes&& aAttr) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   // Remove the entry from the user font cache, if present there, as the cache
   // key may no longer be correct with the new attributes.
@@ -419,7 +419,7 @@ void gfxUserFontEntry::FontLoadComplete() {
 }
 
 void gfxUserFontEntry::ScheduleContinueLoad() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   RefPtr<nsIRunnable> runnable =
       NewRunnableMethod("gfxUserFontEntry::DoContinueLoad", this,
                         &gfxUserFontEntry::DoContinueLoad);
@@ -705,7 +705,7 @@ bool gfxUserFontEntry::LoadPlatformFontSync(uint32_t aSrcIndex,
 void gfxUserFontEntry::StartPlatformFontLoadOnBackgroundThread(
     uint32_t aSrcIndex, const uint8_t*&& aFontData, uint32_t aLength,
     nsMainThreadPtrHandle<nsIFontLoadCompleteCallback> aCallback) {
-  MOZ_ASSERT(!NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(!NS_IsMainThread());
 
   uint32_t sanitaryLen;
   gfxUserFontType fontType;
@@ -896,7 +896,7 @@ void gfxUserFontEntry::Load() {
 void gfxUserFontEntry::FontDataDownloadComplete(
     uint32_t aSrcIndex, const uint8_t*&& aFontData, uint32_t aLength,
     nsresult aDownloadStatus, nsIFontLoadCompleteCallback* aCallback) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   // forget about the loader, as we no longer potentially need to cancel it
   // if the entry is obsoleted
@@ -964,7 +964,7 @@ void gfxUserFontEntry::ContinuePlatformFontLoadOnMainThread(
     const uint8_t*&& aSanitizedFontData, uint32_t aSanitizedLength,
     nsTArray<OTSMessage>&& aMessages,
     nsMainThreadPtrHandle<nsIFontLoadCompleteCallback> aCallback) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   bool loaded = LoadPlatformFont(
       aSrcIndex, std::move(aOriginalFontData), aOriginalLength, aFontType,
@@ -982,7 +982,7 @@ void gfxUserFontEntry::ContinuePlatformFontLoadOnMainThread(
 }
 
 void gfxUserFontEntry::FontLoadFailed(nsIFontLoadCompleteCallback* aCallback) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   // Error occurred.  Make sure the FontFace's promise is rejected if the
   // load timed out, or else load the next src.
@@ -1283,7 +1283,7 @@ bool gfxUserFontSet::UserFontCache::Entry::KeyEquals(
 }
 
 void gfxUserFontSet::UserFontCache::CacheFont(gfxFontEntry* aFontEntry) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   // if caching is disabled, simply return
   if (StaticPrefs::gfx_downloadable_fonts_disable_cache()) {
     return;
@@ -1343,7 +1343,7 @@ void gfxUserFontSet::UserFontCache::ForgetFont(gfxFontEntry* aFontEntry) {
   // The only caller is ~gfxFontEntry; if this fires, there is a path to
   // off-main-thread destruction of a font entry with mIsDataUserFont set
   // that needs to be proxied to main thread (see ~gfxUserFontEntry).
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   if (!sUserFonts) {
     // if we've already deleted the cache (i.e. during shutdown),
     // just ignore this

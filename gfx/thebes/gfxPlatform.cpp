@@ -296,8 +296,8 @@ class LogForwarderEvent : public Runnable {
       : mozilla::Runnable("LogForwarderEvent"), mMessage(aMessage) {}
 
   NS_IMETHOD Run() override {
-    MOZ_ASSERT(NS_IsMainThread() &&
-               (XRE_IsContentProcess() || XRE_IsGPUProcess()));
+    MOZ_RELEASE_ASSERT(NS_IsMainThread() &&
+                       (XRE_IsContentProcess() || XRE_IsGPUProcess()));
 
     if (XRE_IsContentProcess()) {
       dom::ContentChild* cc = dom::ContentChild::GetSingleton();
@@ -351,7 +351,7 @@ class CrashTelemetryEvent : public Runnable {
       : mozilla::Runnable("CrashTelemetryEvent"), mReason(aReason) {}
 
   NS_IMETHOD Run() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     glean::gfx::crash.AccumulateSingleSample(mReason);
     return NS_OK;
   }
@@ -443,7 +443,7 @@ bool gfxPlatform::Initialized() { return !!gPlatform; }
 
 /* static */
 void gfxPlatform::InitChild(const ContentDeviceData& aData) {
-  MOZ_ASSERT(XRE_IsContentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsContentProcess());
   MOZ_ASSERT(!gPlatform,
              "InitChild() should be called before first GetPlatform()");
   // Make the provided initial ContentDeviceData available to the init
@@ -707,8 +707,8 @@ NS_IMPL_ISUPPORTS(WebRenderMemoryReporter, nsIMemoryReporter)
 NS_IMETHODIMP
 WebRenderMemoryReporter::CollectReports(nsIHandleReportCallback* aHandleReport,
                                         nsISupports* aData, bool aAnonymize) {
-  MOZ_ASSERT(XRE_IsParentProcess());
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   layers::CompositorManagerChild* manager =
       CompositorManagerChild::GetInstance();
   if (!manager) {
@@ -2107,7 +2107,7 @@ void gfxPlatform::FlushFontAndWordCaches() {
 
 /* static */
 void gfxPlatform::ForceGlobalReflow(GlobalReflowFlags aFlags) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   bool reframe = !!(aFlags & GlobalReflowFlags::NeedsReframe);
   // Send a notification that will be observed by PresShells in this process
   // only.
@@ -2256,7 +2256,7 @@ static mozilla::Atomic<bool> sLayersAccelerationPrefsInitialized(false);
 
 /* static */
 void gfxPlatform::HardwareVideoFailedChangedCallback(const char* aPref, void*) {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
   if (gPlatform) {
     gPlatform->InitHardwareVideoConfig();
   }
@@ -2264,7 +2264,7 @@ void gfxPlatform::HardwareVideoFailedChangedCallback(const char* aPref, void*) {
 
 /* static */
 void gfxPlatform::HWDRMFailedChangedCallback(const char* aPref, void*) {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
   if (gPlatform) {
     gPlatform->InitPlatformHardwareDRMConfig();
   }
@@ -2287,7 +2287,8 @@ void gfxPlatform::InitAcceleration() {
   // At the moment there's no explicit guarantee that the main thread calls
   // this before the compositor thread, but let's at least make the assumption
   // explicit.
-  MOZ_ASSERT(NS_IsMainThread(), "can only initialize prefs on the main thread");
+  MOZ_RELEASE_ASSERT(NS_IsMainThread(),
+                     "can only initialize prefs on the main thread");
 
   if (XRE_IsParentProcess()) {
     gfxVars::SetBrowserTabsRemoteAutostart(BrowserTabsRemoteAutostart());
@@ -3426,7 +3427,7 @@ RefPtr<mozilla::VsyncDispatcher> gfxPlatform::GetGlobalVsyncDispatcher() {
   MOZ_ASSERT(mVsyncDispatcher,
              "mVsyncDispatcher should have been initialized by ReInitFrameRate "
              "during gfxPlatform init");
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
   return mVsyncDispatcher;
 }
 
@@ -4144,7 +4145,7 @@ void gfxPlatform::DisableGPUProcess() {
 }
 
 void gfxPlatform::ImportCachedContentDeviceData() {
-  MOZ_ASSERT(XRE_IsContentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsContentProcess());
 
   // Import the content device data if we've got some waiting.
   if (!gContentDeviceInitData) {
@@ -4157,7 +4158,7 @@ void gfxPlatform::ImportCachedContentDeviceData() {
 
 void gfxPlatform::ImportContentDeviceData(
     const mozilla::gfx::ContentDeviceData& aData) {
-  MOZ_ASSERT(XRE_IsContentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsContentProcess());
 
   const DevicePrefs& prefs = aData.prefs();
   gfxConfig::Inherit(Feature::HW_COMPOSITING, prefs.hwCompositing());
@@ -4170,7 +4171,7 @@ void gfxPlatform::ImportContentDeviceData(
 
 void gfxPlatform::BuildContentDeviceData(
     mozilla::gfx::ContentDeviceData* aOut) {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   aOut->prefs().hwCompositing() = gfxConfig::GetValue(Feature::HW_COMPOSITING);
   aOut->prefs().oglCompositing() =
@@ -4179,7 +4180,7 @@ void gfxPlatform::BuildContentDeviceData(
 
 void gfxPlatform::ImportGPUDeviceData(
     const mozilla::gfx::GPUDeviceData& aData) {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   gfxConfig::ImportChange(Feature::OPENGL_COMPOSITING, aData.oglCompositing());
 }

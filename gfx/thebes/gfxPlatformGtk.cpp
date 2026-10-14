@@ -655,17 +655,17 @@ class GtkVsyncSource final : public VsyncSource {
         mVsyncTask(nullptr),
         mVsyncEnabledLock("GLXVsyncEnabledLock"),
         mVsyncEnabled(false) {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
   }
 
-  virtual ~GtkVsyncSource() { MOZ_ASSERT(NS_IsMainThread()); }
+  virtual ~GtkVsyncSource() { MOZ_RELEASE_ASSERT(NS_IsMainThread()); }
 
   // Sets up the display's GL context on a worker thread.
   // Required as GLContexts may only be used by the creating thread.
   // Returns true if setup was a success.
   bool Setup() {
     MonitorAutoLock lock(mSetupLock);
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     if (!mVsyncThread.Start()) return false;
 
     RefPtr<Runnable> vsyncSetup =
@@ -680,7 +680,7 @@ class GtkVsyncSource final : public VsyncSource {
   // Called on the Vsync thread to setup the GL context.
   void SetupGLContext() {
     MonitorAutoLock lock(mSetupLock);
-    MOZ_ASSERT(!NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(!NS_IsMainThread());
     MOZ_ASSERT(!mGLContext, "GLContext already setup!");
 
     // Create video sync timer on a separate Display to prevent locking the
@@ -724,7 +724,7 @@ class GtkVsyncSource final : public VsyncSource {
   }
 
   virtual void EnableVsync() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     MOZ_ASSERT(mGLContext, "GLContext not setup!");
 
     MonitorAutoLock lock(mVsyncEnabledLock);
@@ -754,7 +754,7 @@ class GtkVsyncSource final : public VsyncSource {
   }
 
   virtual void Shutdown() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     DisableVsync();
 
     // Cleanup thread-specific resources before shutting down.
@@ -768,7 +768,7 @@ class GtkVsyncSource final : public VsyncSource {
 
  private:
   void RunVsync() {
-    MOZ_ASSERT(!NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(!NS_IsMainThread());
 
     mGLContext->MakeCurrent();
 
@@ -818,7 +818,7 @@ class GtkVsyncSource final : public VsyncSource {
   }
 
   void Cleanup() {
-    MOZ_ASSERT(!NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(!NS_IsMainThread());
 
     mGLContext = nullptr;
     if (mXDisplay) XCloseDisplay(mXDisplay);
@@ -838,7 +838,7 @@ class XrandrSoftwareVsyncSource final
     : public mozilla::gfx::SoftwareVsyncSource {
  public:
   XrandrSoftwareVsyncSource() : SoftwareVsyncSource(ComputeVsyncRate()) {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
     GdkScreen* defaultScreen = gdk_screen_get_default();
     g_signal_connect(defaultScreen, "monitors-changed",

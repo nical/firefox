@@ -18,10 +18,10 @@ namespace mozilla {
 namespace gfx {
 
 VsyncSource::VsyncSource() : mState("VsyncSource::State") {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 }
 
-VsyncSource::~VsyncSource() { MOZ_ASSERT(NS_IsMainThread()); }
+VsyncSource::~VsyncSource() { MOZ_RELEASE_ASSERT(NS_IsMainThread()); }
 
 // Called on the vsync thread
 void VsyncSource::NotifyVsync(const TimeStamp& aVsyncTimestamp,
@@ -106,7 +106,7 @@ void VsyncSource::UpdateVsyncStatus() {
     return;
   }
 
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   // WARNING: This function SHOULD NOT BE CALLED WHILE HOLDING LOCKS
   // NotifyVsync grabs a lock to dispatch vsync events
   // When disabling vsync, we wait for the underlying thread to stop on some

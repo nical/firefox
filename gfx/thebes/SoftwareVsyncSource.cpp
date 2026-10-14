@@ -15,14 +15,14 @@ SoftwareVsyncSource::SoftwareVsyncSource(const TimeDuration& aInitialVsyncRate)
     : mVsyncEnabled(false),
       mVsyncRate(TimeDuration{aInitialVsyncRate},
                  "SoftwareVsyncSource::mVsyncRate") {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   mVsyncThread = new base::Thread("SoftwareVsyncThread");
   MOZ_RELEASE_ASSERT(mVsyncThread->Start(),
                      "GFX: Could not start software vsync thread");
 }
 
 SoftwareVsyncSource::~SoftwareVsyncSource() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   if (mVsyncThread) {
     mVsyncThread->Stop();
     delete mVsyncThread;
@@ -43,7 +43,7 @@ void SoftwareVsyncSource::EnableVsync() {
     return;
   }
 
-  MOZ_ASSERT(IsInSoftwareVsyncThread());
+  MOZ_RELEASE_ASSERT(IsInSoftwareVsyncThread());
   TimeStamp vsyncTime = TimeStamp::Now();
   TimeStamp outputTime = vsyncTime + GetVsyncRate();
   NotifyVsync(vsyncTime, outputTime);
@@ -63,7 +63,7 @@ void SoftwareVsyncSource::DisableVsync() {
     return;
   }
 
-  MOZ_ASSERT(IsInSoftwareVsyncThread());
+  MOZ_RELEASE_ASSERT(IsInSoftwareVsyncThread());
   if (mCurrentVsyncTask) {
     mCurrentVsyncTask->Cancel();
     mCurrentVsyncTask = nullptr;
@@ -71,7 +71,7 @@ void SoftwareVsyncSource::DisableVsync() {
 }
 
 bool SoftwareVsyncSource::IsVsyncEnabled() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   return mVsyncEnabled;
 }
 
@@ -81,7 +81,7 @@ bool SoftwareVsyncSource::IsInSoftwareVsyncThread() {
 
 void SoftwareVsyncSource::NotifyVsync(const TimeStamp& aVsyncTimestamp,
                                       const TimeStamp& aOutputTimestamp) {
-  MOZ_ASSERT(IsInSoftwareVsyncThread());
+  MOZ_RELEASE_ASSERT(IsInSoftwareVsyncThread());
 
   TimeStamp displayVsyncTime = aVsyncTimestamp;
   TimeStamp now = TimeStamp::Now();
@@ -112,7 +112,7 @@ void SoftwareVsyncSource::SetVsyncRate(const TimeDuration& aNewRate) {
 }
 
 void SoftwareVsyncSource::ScheduleNextVsync(TimeStamp aVsyncTimestamp) {
-  MOZ_ASSERT(IsInSoftwareVsyncThread());
+  MOZ_RELEASE_ASSERT(IsInSoftwareVsyncThread());
   TimeDuration vsyncRate = GetVsyncRate();
   TimeStamp nextVsync = aVsyncTimestamp + vsyncRate;
   TimeDuration delay = nextVsync - TimeStamp::Now();
@@ -133,7 +133,7 @@ void SoftwareVsyncSource::ScheduleNextVsync(TimeStamp aVsyncTimestamp) {
 }
 
 void SoftwareVsyncSource::Shutdown() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   DisableVsync();
   mVsyncThread->Stop();
   delete mVsyncThread;

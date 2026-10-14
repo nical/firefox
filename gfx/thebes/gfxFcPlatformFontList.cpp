@@ -1473,7 +1473,7 @@ bool gfxFontconfigFontFamily::SupportsLangGroup(nsAtom* aLangGroup) const {
 /* virtual */
 gfxFontconfigFontFamily::~gfxFontconfigFontFamily() {
   // Should not be dropped by stylo
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 }
 
 template <typename Func>
@@ -2923,7 +2923,7 @@ bool gfxFcPlatformFontList::PrefFontListsUseOnlyGenerics() {
 void gfxFcPlatformFontList::CheckFontUpdates(nsITimer* aTimer, void* aThis) {
   // A content process is not supposed to check this directly;
   // it will be notified by the parent when the font list changes.
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   // check for font updates
   FcInitBringUptoDate();

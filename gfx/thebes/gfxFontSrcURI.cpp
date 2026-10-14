@@ -51,7 +51,8 @@ gfxFontSrcURI::gfxFontSrcURI(nsIURI* aURI) : mURI(aURI) {
 gfxFontSrcURI::~gfxFontSrcURI() = default;
 
 void gfxFontSrcURI::EnsureInitialized() {
-  MOZ_ASSERT(NS_IsMainThread() || mozilla::ServoStyleSet::IsInServoTraversal());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread() ||
+                     mozilla::ServoStyleSet::IsInServoTraversal());
 
   if (mInitialized) {
     return;
