@@ -775,7 +775,7 @@ void VRManager::ProcessManagerState_Idle() {
 
 void VRManager::ProcessManagerState_DetectRuntimes() {
   MOZ_ASSERT(mState == VRManagerState::RuntimeDetection);
-  MOZ_ASSERT(mShmem != nullptr);
+  MOZ_RELEASE_ASSERT(mShmem != nullptr);
 
   PullState();
   if (mEnumerationCompleted) {
@@ -809,7 +809,7 @@ void VRManager::ProcessManagerState_DetectRuntimes() {
 
 void VRManager::ProcessManagerState_Enumeration() {
   MOZ_ASSERT(mState == VRManagerState::Enumeration);
-  MOZ_ASSERT(mShmem != nullptr);
+  MOZ_RELEASE_ASSERT(mShmem != nullptr);
 
   PullState();
   if (mEnumerationCompleted) {
