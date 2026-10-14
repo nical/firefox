@@ -325,13 +325,13 @@ RefPtr<WebRenderAPI::CreatePromise> WebRenderAPI::Create(
                 limitSdrYuvExternalComposites)) {
           // wr_window_new puts a message into gfxCriticalNote if it returns
           // false
-          MOZ_ASSERT(errorMessage);
+          MOZ_RELEASE_ASSERT(errorMessage);
           error.AssignASCII(errorMessage);
           wr_api_free_error_msg(errorMessage);
           return CreatePromise::CreateAndReject(error, __func__);
         }
-        MOZ_ASSERT(wrRenderer);
-        MOZ_ASSERT(docHandle);
+        MOZ_RELEASE_ASSERT(wrRenderer);
+        MOZ_RELEASE_ASSERT(docHandle);
 
         const WebRenderBackend backend = compositor->BackendType();
         const WebRenderCompositor compositorType = compositor->CompositorType();

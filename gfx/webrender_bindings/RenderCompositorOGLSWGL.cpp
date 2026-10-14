@@ -507,7 +507,7 @@ bool RenderCompositorOGLSWGL::TileOGL::Map(wr::DeviceIntRect aDirtyRect,
       return false;
     }
     // Verify that we're not somehow using a PBOUnpackSurface.
-    MOZ_ASSERT(map.mData != nullptr);
+    MOZ_RELEASE_ASSERT(map.mData != nullptr);
     // glTex(Sub)Image on ES doesn't support arbitrary strides without
     // the EXT_unpack_subimage extension. To avoid needing to make a
     // copy of the data we'll always draw it with stride = bpp*width
