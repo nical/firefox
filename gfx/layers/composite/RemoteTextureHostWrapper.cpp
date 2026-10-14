@@ -192,13 +192,13 @@ void RemoteTextureHostWrapper::ApplyTextureFlagsToRemoteTexture() {
 
 TextureHost* RemoteTextureHostWrapper::GetRemoteTextureHost(
     const MonitorAutoLock& aProofOfLock) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   return mRemoteTexture;
 }
 
 void RemoteTextureHostWrapper::SetRemoteTextureHost(
     const MonitorAutoLock& aProofOfLock, TextureHost* aTextureHost) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   mRemoteTexture = aTextureHost;
 
   if (mExternalImageId.isSome() && !mRenderTextureCreated) {
@@ -208,7 +208,7 @@ void RemoteTextureHostWrapper::SetRemoteTextureHost(
 
 void RemoteTextureHostWrapper::ClearRemoteTextureHost(
     const MonitorAutoLock& aProofOfLoc) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   mRemoteTexture = nullptr;
 }
 

@@ -38,7 +38,7 @@ class TestVsyncObserver : public VsyncObserver {
   }
 
   void WaitForVsyncNotification() {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     if (DidGetVsyncNotification()) {
       return;
     }

@@ -984,7 +984,7 @@ RefPtr<TextureHost> RemoteTextureMap::CreateRemoteTexture(
 void RemoteTextureMap::UpdateTexture(const MonitorAutoLock& aProofOfLock,
                                      RemoteTextureMap::TextureOwner* aOwner,
                                      const RemoteTextureId aTextureId) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(aOwner);
   MOZ_ASSERT(aTextureId >= aOwner->mLatestUsingTextureId);
 
@@ -1052,7 +1052,7 @@ void RemoteTextureMap::GetAllRenderingReadyCallbacks(
 
 bool RemoteTextureMap::WaitForRemoteTextureOwner(
     RemoteTextureHostWrapper* aTextureHostWrapper) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(aTextureHostWrapper);
 
   const auto& ownerId = aTextureHostWrapper->mOwnerId;
@@ -1085,7 +1085,7 @@ bool RemoteTextureMap::WaitForRemoteTextureOwner(
 
 void RemoteTextureMap::GetRemoteTexture(
     RemoteTextureHostWrapper* aTextureHostWrapper) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(aTextureHostWrapper);
 
   if (aTextureHostWrapper->IsReadyForRendering()) {
@@ -1208,7 +1208,7 @@ bool RemoteTextureMap::WaitForTxn(const RemoteTextureOwnerId aOwnerId,
 
 void RemoteTextureMap::ReleaseRemoteTextureHost(
     RemoteTextureHostWrapper* aTextureHostWrapper) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(aTextureHostWrapper);
 
   RefPtr<TextureHost> releasingTexture;  // Release outside the mutex
@@ -1223,7 +1223,7 @@ RefPtr<TextureHost> RemoteTextureMap::GetOrCreateRemoteTextureHostWrapper(
     const RemoteTextureId aTextureId, const RemoteTextureOwnerId aOwnerId,
     const base::ProcessId aForPid, const gfx::IntSize& aSize,
     const TextureFlags aFlags) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MonitorAutoLock lock(mMonitor);
 
   const auto key = std::pair(aForPid, aTextureId);
@@ -1244,7 +1244,7 @@ RefPtr<TextureHost> RemoteTextureMap::GetOrCreateRemoteTextureHostWrapper(
 void RemoteTextureMap::UnregisterRemoteTextureHostWrapper(
     const RemoteTextureId aTextureId, const RemoteTextureOwnerId aOwnerId,
     const base::ProcessId aForPid) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   std::vector<RefPtr<TextureHost>>
       releasingTextures;  // Release outside the monitor
@@ -1270,7 +1270,7 @@ void RemoteTextureMap::UnregisterRemoteTextureHostWrapper(
 bool RemoteTextureMap::CheckRemoteTextureReady(
     const RemoteTextureInfo& aInfo,
     std::function<void(const RemoteTextureInfo&)>&& aCallback) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   MonitorAutoLock lock(mMonitor);
 
@@ -1323,7 +1323,7 @@ bool RemoteTextureMap::CheckRemoteTextureReady(
 }
 
 bool RemoteTextureMap::WaitRemoteTextureReady(const RemoteTextureInfo& aInfo) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   MonitorAutoLock lock(mMonitor);
 
@@ -1390,7 +1390,7 @@ bool RemoteTextureMap::WaitRemoteTextureReady(const RemoteTextureInfo& aInfo) {
 
 void RemoteTextureMap::SuppressRemoteTextureReadyCheck(
     const RemoteTextureInfo& aInfo) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MonitorAutoLock lock(mMonitor);
 
   // Clear if WaitingTextureOwner exists.

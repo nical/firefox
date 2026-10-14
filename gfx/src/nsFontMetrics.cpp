@@ -156,7 +156,7 @@ nsFontMetrics::nsFontMetrics(const nsFont& aFont, const Params& aParams,
 
 nsFontMetrics::~nsFontMetrics() {
   // Should not be dropped by stylo
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   if (mPresContext) {
     mPresContext->FontMetricsDeleted(this);
   }

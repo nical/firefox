@@ -79,7 +79,7 @@ AndroidImageReaderImage::AndroidImageReaderImage(
       mFrameId(AndroidMediaCodecFrameId::GetNext()),
       mSize(aSize),
       mHasAlpha(aHasAlpha) {
-  MOZ_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
 }
 
 AndroidImageReaderImage::~AndroidImageReaderImage() {
@@ -123,7 +123,7 @@ bool AndroidImageReaderImage::MaybeReleaseFrameToCodec(
 nsresult AndroidImageReaderImage::BuildSurfaceDescriptorBuffer(
     SurfaceDescriptorBuffer& aSdBuffer, BuildSdbFlags aFlags,
     const std::function<MemoryOrShmem(uint32_t)>& aAllocate) {
-  MOZ_ASSERT(RemoteMediaManagerParent::OnManagerThread());
+  MOZ_RELEASE_ASSERT(RemoteMediaManagerParent::OnManagerThread());
 
   StaticMutexAutoLock lock(sAImageReadbackMutex);
   if (sAImageReadbackShuttingDown) {
@@ -661,8 +661,8 @@ StaticAutoPtr<GpuProcessAndroidImageReaderMap>
 
 /* static */
 void GpuProcessAndroidImageReaderMap::Init() {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
 
   StaticMutexAutoLock lock(sAImageReadbackMutex);
   MOZ_ASSERT(!sInstance);
@@ -673,7 +673,7 @@ void GpuProcessAndroidImageReaderMap::Init() {
 
 /* static */
 void GpuProcessAndroidImageReaderMap::Shutdown() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   // Wait for any readback to release the context before destroying it here.
   StaticMutexAutoLock lock(sAImageReadbackMutex);
@@ -742,7 +742,7 @@ bool GpuProcessAndroidImageReaderMap::MaybeReleaseFrameToCodec(
 
 RefPtr<AndroidImageConsumer> GpuProcessAndroidImageReaderMap::GetImageConsumer(
     const GpuProcessAndroidImageReaderId aImageReaderId, gl::GLContext* aGL) {
-  MOZ_ASSERT(wr::RenderThread::IsInRenderThread());
+  MOZ_RELEASE_ASSERT(wr::RenderThread::IsInRenderThread());
   MOZ_ASSERT(aGL);
 
   MonitorAutoLock lock(mMonitor);
@@ -781,7 +781,7 @@ RefPtr<AndroidImageConsumer> GpuProcessAndroidImageReaderMap::GetImageConsumer(
 
 void GpuProcessAndroidImageReaderMap::UnregisterImageConsumer(
     GpuProcessAndroidImageReaderId aImageReaderId) {
-  MOZ_ASSERT(wr::RenderThread::IsInRenderThread());
+  MOZ_RELEASE_ASSERT(wr::RenderThread::IsInRenderThread());
 
   MonitorAutoLock lock(mMonitor);
 

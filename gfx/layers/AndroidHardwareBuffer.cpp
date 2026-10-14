@@ -262,7 +262,7 @@ StaticAutoPtr<AndroidHardwareBufferManager>
 
 /* static */
 void AndroidHardwareBufferManager::Init() {
-  MOZ_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
 
   sInstance = new AndroidHardwareBufferManager();
 }

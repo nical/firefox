@@ -586,12 +586,12 @@ class ImageContainer final : public SupportsThreadSafeWeakPtr<ImageContainer> {
   }
 
   void SetRotation(VideoRotation aRotation) {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     mRotation = aRotation;
   }
 
   VideoRotation GetRotation() const {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     return mRotation;
   }
 

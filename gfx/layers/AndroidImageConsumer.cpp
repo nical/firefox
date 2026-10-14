@@ -18,7 +18,7 @@ namespace layers {
 /* static */
 already_AddRefed<AndroidImageConsumer> AndroidImageConsumer::Create(
     AndroidImageReader* aImageReader, gl::GLContext* aGL) {
-  MOZ_ASSERT(wr::RenderThread::IsInRenderThread());
+  MOZ_RELEASE_ASSERT(wr::RenderThread::IsInRenderThread());
   MOZ_ASSERT(aImageReader);
   MOZ_ASSERT(aGL);
 
@@ -47,7 +47,7 @@ AndroidImageConsumer::AndroidImageConsumer(AndroidImageReader* aImageReader,
 }
 
 AndroidImageConsumer::~AndroidImageConsumer() {
-  MOZ_ASSERT(wr::RenderThread::IsInRenderThread());
+  MOZ_RELEASE_ASSERT(wr::RenderThread::IsInRenderThread());
 
   auto* imageReaderMap = layers::GpuProcessAndroidImageReaderMap::Get();
   if (imageReaderMap) {
@@ -59,7 +59,7 @@ AndroidImageConsumer::~AndroidImageConsumer() {
 
 void AndroidImageConsumer::UpdateTexImage(
     const AndroidMediaCodecFrameId aFrameId) {
-  MOZ_ASSERT(wr::RenderThread::IsInRenderThread());
+  MOZ_RELEASE_ASSERT(wr::RenderThread::IsInRenderThread());
 
   if (!mImageReader->UpdateTexImage(aFrameId, mGL, mTextureHandle,
                                     getter_AddRefs(mCurrentImage))) {

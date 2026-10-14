@@ -169,7 +169,7 @@ bool DriverCrashGuard::Crashed() {
 }
 
 nsCOMPtr<nsIFile> DriverCrashGuard::GetGuardFile() {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   nsCString filename;
   filename.Assign(sCrashGuardNames[size_t(mType)]);
@@ -228,7 +228,7 @@ void DriverCrashGuard::NotifyCrashed() {
 }
 
 bool DriverCrashGuard::RecoverFromCrash() {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   nsCOMPtr<nsIFile> file = GetGuardFile();
   bool exists;
@@ -340,13 +340,13 @@ DriverInitStatus DriverCrashGuard::GetStatus() const {
 }
 
 void DriverCrashGuard::SetStatus(DriverInitStatus aStatus) {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   Preferences::SetInt(mStatusPref.get(), int32_t(aStatus));
 }
 
 void DriverCrashGuard::FlushPreferences() {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   if (nsIPrefService* prefService = Preferences::GetService()) {
     static_cast<Preferences*>(prefService)->SavePrefFileBlocking();

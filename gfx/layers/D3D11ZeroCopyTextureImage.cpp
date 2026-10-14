@@ -56,7 +56,7 @@ D3D11ZeroCopyTextureImage::D3D11ZeroCopyTextureImage(
       mTransferFunction(aTransferFunction),
       mHDRMetadata(aHDRMetadata),
       mColorDepth(aColorDepth) {
-  MOZ_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
   MOZ_ASSERT(mFormat == gfx::SurfaceFormat::NV12 ||
              mFormat == gfx::SurfaceFormat::P010 ||
              mFormat == gfx::SurfaceFormat::P016);
@@ -157,7 +157,7 @@ D3D11TextureIMFSampleImage::D3D11TextureIMFSampleImage(
                                 aColorSpace, aColorRange, aTransferFunction,
                                 aHDRMetadata, aColorDepth),
       mVideoSample(IMFSampleWrapper::Create(aVideoSample)) {
-  MOZ_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
 }
 
 RefPtr<IMFSampleWrapper> D3D11TextureIMFSampleImage::GetIMFSampleWrapper() {
@@ -176,7 +176,7 @@ D3D11TextureAVFrameImage::D3D11TextureAVFrameImage(
                                 aColorRange, aTransferFunction, aHDRMetadata,
                                 aColorDepth),
       mWrapper(aWrapper) {
-  MOZ_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
 }
 
 }  // namespace layers

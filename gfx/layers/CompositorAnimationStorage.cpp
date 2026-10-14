@@ -87,7 +87,7 @@ already_AddRefed<StyleAnimationValue> AnimatedValue::AsAnimationValue(
 }
 
 void CompositorAnimationStorage::ClearById(const uint64_t& aId) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MutexAutoLock lock(mLock);
 
   const auto& animationStorageData = mAnimations[aId];
@@ -103,7 +103,7 @@ void CompositorAnimationStorage::ClearById(const uint64_t& aId) {
 }
 
 bool CompositorAnimationStorage::HasAnimations() const {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MutexAutoLock lock(mLock);
 
   return !mAnimations.empty();
@@ -204,7 +204,7 @@ void CompositorAnimationStorage::SetAnimatedValue(uint64_t aId,
 void CompositorAnimationStorage::SetAnimations(
     uint64_t aId, const LayersId& aLayersId, const AnimationArray& aValue,
     const TimeStamp& aPreviousSampleTime) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MutexAutoLock lock(mLock);
 
   mAnimations[aId] =

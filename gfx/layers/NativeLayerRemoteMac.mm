@@ -56,7 +56,7 @@ NativeLayerRemoteMac::~NativeLayerRemoteMac() {
 
 void NativeLayerRemoteMac::AttachExternalImage(
     wr::RenderTextureHost* aExternalImage) {
-  MOZ_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
   MOZ_ASSERT(!mSurfaceHandler);
 
   wr::RenderMacIOSurfaceTextureHost* texture =

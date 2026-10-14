@@ -93,7 +93,7 @@ void gfxVars::Shutdown() {
 /* static */
 void gfxVars::ApplyUpdate(const nsTArray<GfxVarUpdate>& aUpdate) {
   // Only subprocesses receive updates and apply them locally.
-  MOZ_ASSERT(!XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(!XRE_IsParentProcess());
   MOZ_DIAGNOSTIC_ASSERT(sVarList || gGfxVarInitUpdates);
   if (sVarList) {
     for (auto& i : aUpdate) {
@@ -108,7 +108,7 @@ void gfxVars::ApplyUpdate(const nsTArray<GfxVarUpdate>& aUpdate) {
 
 /* static */
 void gfxVars::AddReceiver(gfxVarReceiver* aReceiver) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   // Don't double-add receivers, in case a broken content process sends two
   // init messages.
@@ -119,7 +119,7 @@ void gfxVars::AddReceiver(gfxVarReceiver* aReceiver) {
 
 /* static */
 void gfxVars::RemoveReceiver(gfxVarReceiver* aReceiver) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   if (sInstance) {
     sInstance->mReceivers.RemoveElement(aReceiver);
@@ -128,7 +128,7 @@ void gfxVars::RemoveReceiver(gfxVarReceiver* aReceiver) {
 
 /* static */
 nsTArray<GfxVarUpdate> gfxVars::FetchNonDefaultVars() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(sVarList);
 
   nsTArray<GfxVarUpdate> updates;
@@ -153,7 +153,7 @@ gfxVars::VarBase::VarBase() {
 }
 
 void gfxVars::NotifyReceivers(VarBase* aVar) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   GfxVarValue value;
   aVar->GetValue(&value);

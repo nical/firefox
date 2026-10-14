@@ -21,19 +21,19 @@ StaticAutoPtr<GpuProcessD3D11TextureMap> GpuProcessD3D11TextureMap::sInstance;
 
 /* static */
 void GpuProcessD3D11TextureMap::Init() {
-  MOZ_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
   sInstance = new GpuProcessD3D11TextureMap();
 }
 
 /* static */
 void GpuProcessD3D11TextureMap::Shutdown() {
-  MOZ_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
   sInstance = nullptr;
 }
 
 /* static */
 GpuProcessTextureId GpuProcessD3D11TextureMap::GetNextTextureId() {
-  MOZ_ASSERT(XRE_IsGPUProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsGPUProcess());
   return GpuProcessTextureId::GetNext();
 }
 
@@ -229,7 +229,7 @@ size_t GpuProcessD3D11TextureMap::GetWaitingTextureCount() const {
 
 bool GpuProcessD3D11TextureMap::WaitTextureReady(
     const GpuProcessTextureId aTextureId) {
-  MOZ_ASSERT(wr::RenderThread::IsInRenderThread());
+  MOZ_RELEASE_ASSERT(wr::RenderThread::IsInRenderThread());
 
   MonitorAutoLock lock(mMonitor);
   auto it = mWaitingTextures.find(aTextureId);
@@ -328,7 +328,7 @@ void GpuProcessD3D11TextureMap::HandleInTextureUpdateThread() {
 RefPtr<ID3D11Texture2D> GpuProcessD3D11TextureMap::UpdateTextureData(
     UpdatingTextureHolder* aHolder) {
   MOZ_ASSERT(aHolder);
-  MOZ_ASSERT(aHolder->mAllocator->mThread->IsOnCurrentThread());
+  MOZ_RELEASE_ASSERT(aHolder->mAllocator->mThread->IsOnCurrentThread());
 
   auto* bufferTexture = aHolder->mWrappedTextureHost->AsBufferTextureHost();
   MOZ_ASSERT(bufferTexture);
@@ -443,11 +443,11 @@ GpuProcessD3D11TextureMap::UpdatingTextureHolder::UpdatingTextureHolder(
       mTextureHost(aTextureHost),
       mWrappedTextureHost(aWrappedTextureHost),
       mAllocator(aAllocator) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 }
 
 GpuProcessD3D11TextureMap::UpdatingTextureHolder::~UpdatingTextureHolder() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 }
 
 }  // namespace layers

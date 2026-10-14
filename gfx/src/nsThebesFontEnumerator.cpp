@@ -58,7 +58,7 @@ struct EnumerateFontsPromise final {
   explicit EnumerateFontsPromise(mozilla::dom::Promise* aPromise)
       : mPromise(aPromise) {
     MOZ_ASSERT(aPromise);
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
   }
 
   RefPtr<mozilla::dom::Promise> mPromise;
@@ -74,11 +74,11 @@ class EnumerateFontsResult final : public Runnable {
         mEnumerateFontsPromise(std::move(aEnumerateFontsPromise)),
         mFontList(std::move(aFontList)),
         mWorkerThread(do_GetCurrentThread()) {
-    MOZ_ASSERT(!NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(!NS_IsMainThread());
   }
 
   NS_IMETHOD Run() override {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
     if (NS_FAILED(mRv)) {
       mEnumerateFontsPromise->mPromise->MaybeReject(mRv);
@@ -108,11 +108,11 @@ class EnumerateFontsTask final : public Runnable {
         mGeneric(aGeneric),
         mEnumerateFontsPromise(std::move(aEnumerateFontsPromise)),
         mMainThreadTarget(aMainThreadTarget) {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
   }
 
   NS_IMETHOD Run() override {
-    MOZ_ASSERT(!NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(!NS_IsMainThread());
 
     nsTArray<nsString> fontList;
 
@@ -142,7 +142,7 @@ NS_IMETHODIMP
 nsThebesFontEnumerator::EnumerateFontsAsync(
     const char* aLangGroup, const char* aGeneric, JSContext* aCx,
     JS::MutableHandle<JS::Value> aRval) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIGlobalObject> global = xpc::CurrentNativeGlobal(aCx);
   NS_ENSURE_TRUE(global, NS_ERROR_UNEXPECTED);

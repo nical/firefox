@@ -58,7 +58,7 @@ void SurfacePoolWayland::ForEachEntry(F aFn) {
 }
 
 void SurfacePoolWayland::DestroyGLResourcesForContext(GLContext* aGL) {
-  MOZ_ASSERT(wr::RenderThread::IsInRenderThread());
+  MOZ_RELEASE_ASSERT(wr::RenderThread::IsInRenderThread());
   MutexAutoLock lock(mMutex);
 
   ForEachEntry([&](SurfacePoolEntry& entry) {
@@ -200,7 +200,7 @@ void SurfacePoolWayland::CollectPendingSurfaces() {
   //   up by the next run.
   // - DestroyGLResourcesForContext() also runs on the render thread, so it
   //   cannot race with this method.
-  MOZ_ASSERT(wr::RenderThread::IsInRenderThread());
+  MOZ_RELEASE_ASSERT(wr::RenderThread::IsInRenderThread());
   nsTArray<SurfacePoolEntry> pendingEntries;
   {
     MutexAutoLock lock(mMutex);

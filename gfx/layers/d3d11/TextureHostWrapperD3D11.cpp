@@ -25,7 +25,7 @@ TextureWrapperD3D11Allocator::~TextureWrapperD3D11Allocator() = default;
 
 RefPtr<ID3D11Texture2D> TextureWrapperD3D11Allocator::CreateOrRecycle(
     gfx::SurfaceFormat aSurfaceFormat, gfx::IntSize aSize) {
-  MOZ_ASSERT(mThread->IsOnCurrentThread());
+  MOZ_RELEASE_ASSERT(mThread->IsOnCurrentThread());
 
   RefPtr<ID3D11Device> device = gfx::DeviceManagerDx::Get()->GetImageDevice();
   {
@@ -89,7 +89,7 @@ RefPtr<ID3D11Texture2D> TextureWrapperD3D11Allocator::CreateOrRecycle(
 
 void TextureWrapperD3D11Allocator::EnsureStagingTexture(
     RefPtr<ID3D11Device> aDevice) {
-  MOZ_ASSERT(mThread->IsOnCurrentThread());
+  MOZ_RELEASE_ASSERT(mThread->IsOnCurrentThread());
   MOZ_ASSERT(aDevice);
 
   if (mStagingTexture) {
@@ -118,13 +118,13 @@ void TextureWrapperD3D11Allocator::EnsureStagingTexture(
 }
 
 RefPtr<ID3D11Texture2D> TextureWrapperD3D11Allocator::GetStagingTexture() {
-  MOZ_ASSERT(mThread->IsOnCurrentThread());
+  MOZ_RELEASE_ASSERT(mThread->IsOnCurrentThread());
 
   return mStagingTexture;
 }
 
 RefPtr<ID3D11Device> TextureWrapperD3D11Allocator::GetDevice() {
-  MOZ_ASSERT(mThread->IsOnCurrentThread());
+  MOZ_RELEASE_ASSERT(mThread->IsOnCurrentThread());
 
   MutexAutoLock lock(mMutex);
   return mDevice;
@@ -132,7 +132,7 @@ RefPtr<ID3D11Device> TextureWrapperD3D11Allocator::GetDevice() {
 
 void TextureWrapperD3D11Allocator::ClearAllTextures(
     const MutexAutoLock& aProofOfLock) {
-  MOZ_ASSERT(mThread->IsOnCurrentThread());
+  MOZ_RELEASE_ASSERT(mThread->IsOnCurrentThread());
 
   mStagingTexture = nullptr;
   mRecycledTextures.clear();
@@ -140,7 +140,7 @@ void TextureWrapperD3D11Allocator::ClearAllTextures(
 
 void TextureWrapperD3D11Allocator::RecycleTexture(
     RefPtr<ID3D11Texture2D>& aTexture) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(aTexture);
 
   RefPtr<ID3D11Device> device;
@@ -168,7 +168,7 @@ void TextureWrapperD3D11Allocator::RecycleTexture(
 void TextureWrapperD3D11Allocator::RegisterTextureHostWrapper(
     const wr::ExternalImageId& aExternalImageId,
     RefPtr<TextureHost> aTextureHost) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   auto it = mTextureHostWrappers.find(wr::AsUint64(aExternalImageId));
   if (it != mTextureHostWrappers.end()) {
@@ -180,7 +180,7 @@ void TextureWrapperD3D11Allocator::RegisterTextureHostWrapper(
 
 void TextureWrapperD3D11Allocator::UnregisterTextureHostWrapper(
     const wr::ExternalImageId& aExternalImageId) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   auto it = mTextureHostWrappers.find(wr::AsUint64(aExternalImageId));
   if (it == mTextureHostWrappers.end()) {
@@ -192,7 +192,7 @@ void TextureWrapperD3D11Allocator::UnregisterTextureHostWrapper(
 
 RefPtr<TextureHost> TextureWrapperD3D11Allocator::GetTextureHostWrapper(
     const wr::ExternalImageId& aExternalImageId) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   auto it = mTextureHostWrappers.find(wr::AsUint64(aExternalImageId));
   if (it == mTextureHostWrappers.end()) {
@@ -205,7 +205,7 @@ RefPtr<TextureHost> TextureWrapperD3D11Allocator::GetTextureHostWrapper(
 RefPtr<TextureHost> TextureHostWrapperD3D11::CreateFromBufferTexture(
     const RefPtr<TextureWrapperD3D11Allocator>& aAllocator,
     TextureHost* aTextureHost) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(aAllocator);
   MOZ_ASSERT(aTextureHost);
 
@@ -300,7 +300,7 @@ TextureHostWrapperD3D11::TextureHostWrapperD3D11(
       mTextureHostD3D11(aTextureHostD3D11),
       mWrappedTextureHost(aWrappedTextureHost),
       mWrappedExternalImageId(aWrappedExternalImageId) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(mAllocator);
   MOZ_ASSERT(mTextureHostD3D11);
   MOZ_ASSERT(mWrappedTextureHost);
@@ -309,7 +309,7 @@ TextureHostWrapperD3D11::TextureHostWrapperD3D11(
 }
 
 TextureHostWrapperD3D11::~TextureHostWrapperD3D11() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_COUNT_DTOR(TextureHostWrapperD3D11);
 
   auto* textureMap = GpuProcessD3D11TextureMap::Get();
@@ -388,7 +388,7 @@ void TextureHostWrapperD3D11::UnbindTextureSource() {
 }
 
 void TextureHostWrapperD3D11::NotifyNotUsed() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   mAllocator->UnregisterTextureHostWrapper(mWrappedExternalImageId);
 

@@ -353,7 +353,7 @@ Maybe<SurfaceDescriptor> Image::GetDescFromTexClient(
 
 already_AddRefed<ImageContainerListener>
 ImageContainer::GetImageContainerListener() const {
-  MOZ_ASSERT(InImageBridgeChildThread());
+  MOZ_RELEASE_ASSERT(InImageBridgeChildThread());
   return do_AddRef(mNotifyCompositeListener);
 }
 
@@ -581,7 +581,7 @@ void ImageContainer::NotifyDropped(uint32_t aDropped) {
 void ImageContainer::EnsureRecycleAllocatorForRDD(
     KnowsCompositor* aKnowsCompositor) {
   MOZ_ASSERT(!mIsAsync);
-  MOZ_ASSERT(XRE_IsRDDProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsRDDProcess());
 
   RecursiveMutexAutoLock lock(mRecursiveMutex);
   MOZ_ASSERT(!mImageClient);

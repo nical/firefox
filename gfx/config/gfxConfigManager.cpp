@@ -24,7 +24,7 @@ namespace mozilla {
 namespace gfx {
 
 void gfxConfigManager::Init() {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
 
   EmplaceUserPref("gfx.webrender.compositor", mWrCompositorEnabled);
   mWrLayerCompositorEnabled = StaticPrefs::gfx_webrender_layer_compositor();
@@ -142,7 +142,7 @@ void gfxConfigManager::ConfigureFromBlocklist(long aFeature,
 }
 
 void gfxConfigManager::ConfigureWebRender() {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
   MOZ_ASSERT(mFeatureWr);
   MOZ_ASSERT(mFeatureWrCompositor);
   MOZ_ASSERT(mFeatureWrAngle);
