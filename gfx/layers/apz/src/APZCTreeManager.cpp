@@ -176,7 +176,7 @@ class APZCTreeManager::CheckerboardFlushObserver : public nsIObserver {
 
   explicit CheckerboardFlushObserver(APZCTreeManager* aTreeManager)
       : mTreeManager(aTreeManager) {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     nsCOMPtr<nsIObserverService> obsSvc =
         mozilla::services::GetObserverService();
     MOZ_ASSERT(obsSvc);
@@ -186,7 +186,7 @@ class APZCTreeManager::CheckerboardFlushObserver : public nsIObserver {
   }
 
   void Unregister() {
-    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_RELEASE_ASSERT(NS_IsMainThread());
     nsCOMPtr<nsIObserverService> obsSvc =
         mozilla::services::GetObserverService();
     if (obsSvc) {
@@ -208,7 +208,7 @@ NS_IMETHODIMP
 APZCTreeManager::CheckerboardFlushObserver::Observe(nsISupports* aSubject,
                                                     const char* aTopic,
                                                     const char16_t*) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mTreeManager.get());
 
   RecursiveMutexAutoLock lock(mTreeManager->mTreeLock);
@@ -226,7 +226,7 @@ APZCTreeManager::CheckerboardFlushObserver::Observe(nsISupports* aSubject,
       (void)gpu->SendFlushActiveCheckerboardReportsDone();
     }
   } else {
-    MOZ_ASSERT(XRE_IsParentProcess());
+    MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
     nsCOMPtr<nsIObserverService> obsSvc =
         mozilla::services::GetObserverService();
     if (obsSvc) {
@@ -1812,7 +1812,7 @@ APZEventResult APZCTreeManager::ReceiveInputEvent(
       // to duplicate this EventStateManager code or something. See the call to
       // GetUserPrefsForWheelEvent in APZBridge.cpp for why these fields
       // are stored separately.
-      MOZ_ASSERT(NS_IsMainThread());
+      MOZ_RELEASE_ASSERT(NS_IsMainThread());
       WidgetWheelEvent wheelEvent = panInput.ToWidgetEvent(nullptr);
       EventStateManager::GetUserPrefsForWheelEvent(
           &wheelEvent, &panInput.mUserDeltaMultiplierX,
