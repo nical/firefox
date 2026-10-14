@@ -122,7 +122,7 @@ void DeallocateTextureClient(TextureDeallocParams& params);
 class TextureChild final : public PTextureChild {
   ~TextureChild() {
     // We should have deallocated mTextureData in ActorDestroy
-    MOZ_ASSERT(!mTextureData);
+    MOZ_RELEASE_ASSERT(!mTextureData);
     MOZ_ASSERT_IF(!mOwnerCalledDestroy, !mTextureClient);
   }
 
@@ -553,10 +553,10 @@ void TextureClient::UnlockActor() const {
 
 void TextureClient::EnsureHasReadLock() {
   if (mFlags & TextureFlags::NON_BLOCKING_READ_LOCK) {
-    MOZ_ASSERT(!(mFlags & TextureFlags::BLOCKING_READ_LOCK));
+    MOZ_RELEASE_ASSERT(!(mFlags & TextureFlags::BLOCKING_READ_LOCK));
     EnableReadLock();
   } else if (mFlags & TextureFlags::BLOCKING_READ_LOCK) {
-    MOZ_ASSERT(!(mFlags & TextureFlags::NON_BLOCKING_READ_LOCK));
+    MOZ_RELEASE_ASSERT(!(mFlags & TextureFlags::NON_BLOCKING_READ_LOCK));
     EnableBlockingReadLock();
   }
 }
@@ -571,8 +571,8 @@ bool TextureClient::IsReadLocked() {
   {
     MutexAutoLock lock(mMutex);
     if (mReadLock) {
-      MOZ_ASSERT(mReadLock->AsNonBlockingLock(),
-                 "Can only check locked for non-blocking locks!");
+      MOZ_RELEASE_ASSERT(mReadLock->AsNonBlockingLock(),
+                         "Can only check locked for non-blocking locks!");
       return mReadLock->AsNonBlockingLock()->GetReadCount() > 1;
     }
 
@@ -588,13 +588,13 @@ bool TextureClient::IsReadLocked() {
         MOZ_ASSERT(!mAllocator->IPCOpen());
         return false;
       }
-      MOZ_ASSERT(mReadLock->AsNonBlockingLock(),
-                 "Can only check locked for non-blocking locks!");
+      MOZ_RELEASE_ASSERT(mReadLock->AsNonBlockingLock(),
+                         "Can only check locked for non-blocking locks!");
       return mReadLock->AsNonBlockingLock()->GetReadCount() > 1;
     }
   }
 
-  MOZ_ASSERT(mAllocator->UsesImageBridge());
+  MOZ_RELEASE_ASSERT(mAllocator->UsesImageBridge());
 
   bool result = false;
   SynchronousTask task("TextureClient::IsReadLocked");
@@ -662,7 +662,7 @@ bool TextureClient::TryReadLock() {
     }
   }
 
-  MOZ_ASSERT(mAllocator->UsesImageBridge());
+  MOZ_RELEASE_ASSERT(mAllocator->UsesImageBridge());
 
   bool result = false;
   SynchronousTask task("TextureClient::TryReadLock");
@@ -686,7 +686,7 @@ void TextureClient::ReadUnlock() {
     return;
   }
 
-  MOZ_ASSERT(mReadLock);
+  MOZ_RELEASE_ASSERT(mReadLock);
   mReadLock->ReadUnlock();
   mIsReadLocked = false;
 }
@@ -770,7 +770,7 @@ void TextureClient::Unlock() {
 }
 
 void TextureClient::EnableReadLock() {
-  MOZ_ASSERT(ShouldReadLock());
+  MOZ_RELEASE_ASSERT(ShouldReadLock());
   if (!mReadLock && mAllocator->GetTileLockAllocator()) {
     mReadLock = NonBlockingTextureReadLock::Create(mAllocator);
   }
@@ -853,18 +853,18 @@ bool TextureClient::OnForwardedToHost() {
 TextureClient::~TextureClient() {
   // TextureClients should be kept alive while there are references on the
   // paint thread.
-  MOZ_ASSERT(mPaintThreadRefs == 0);
+  MOZ_RELEASE_ASSERT(mPaintThreadRefs == 0);
   mReadLock = nullptr;
   Destroy();
 }
 
 void TextureClient::UpdateFromSurface(gfx::SourceSurface* aSurface) {
-  MOZ_ASSERT(IsValid());
-  MOZ_ASSERT(mIsLocked);
-  MOZ_ASSERT(aSurface);
+  MOZ_RELEASE_ASSERT(IsValid());
+  MOZ_RELEASE_ASSERT(mIsLocked);
+  MOZ_RELEASE_ASSERT(aSurface);
   // If you run into this assertion, make sure the texture was locked write-only
   // rather than read-write.
-  MOZ_ASSERT(!mBorrowedDrawTarget);
+  MOZ_RELEASE_ASSERT(!mBorrowedDrawTarget);
 
   // XXX - It would be better to first try the DrawTarget approach and fallback
   // to the backend-specific implementation because the latter will usually do
@@ -892,7 +892,7 @@ void TextureClient::UpdateFromSurface(gfx::SourceSurface* aSurface) {
 already_AddRefed<TextureClient> TextureClient::CreateSimilar(
     LayersBackend aLayersBackend, TextureFlags aFlags,
     TextureAllocationFlags aAllocFlags) const {
-  MOZ_ASSERT(IsValid());
+  MOZ_RELEASE_ASSERT(IsValid());
 
   MOZ_ASSERT(!mIsLocked);
   if (mIsLocked) {
@@ -931,7 +931,7 @@ gfx::DrawTarget* TextureClient::BorrowDrawTarget() {
 }
 
 void TextureClient::EndDraw() {
-  MOZ_ASSERT(mOpenMode & OpenMode::OPEN_READ_WRITE);
+  MOZ_RELEASE_ASSERT(mOpenMode & OpenMode::OPEN_READ_WRITE);
 
   // Because EndDraw is used when we are not unlocking this TextureClient at the
   // end of a transaction, we need to Flush and DetachAllSnapshots to ensure any
@@ -949,7 +949,7 @@ void TextureData::ReturnDrawTarget(already_AddRefed<gfx::DrawTarget> aDT) {
 }
 
 already_AddRefed<gfx::SourceSurface> TextureClient::BorrowSnapshot() {
-  MOZ_ASSERT(mIsLocked);
+  MOZ_RELEASE_ASSERT(mIsLocked);
 
   RefPtr<gfx::SourceSurface> surface = mData->BorrowSnapshot();
   if (surface) {
@@ -1009,7 +1009,7 @@ void TextureClient::ReturnSnapshot(
 }
 
 bool TextureClient::BorrowMappedData(MappedTextureData& aMap) {
-  MOZ_ASSERT(IsValid());
+  MOZ_RELEASE_ASSERT(IsValid());
 
   // TODO - SharedRGBImage just accesses the buffer without properly locking
   // the texture. It's bad.
@@ -1022,7 +1022,7 @@ bool TextureClient::BorrowMappedData(MappedTextureData& aMap) {
 }
 
 bool TextureClient::BorrowMappedYCbCrData(MappedYCbCrTextureData& aMap) {
-  MOZ_ASSERT(IsValid());
+  MOZ_RELEASE_ASSERT(IsValid());
 
   return mData ? mData->BorrowMappedYCbCrData(aMap) : false;
 }
@@ -1087,22 +1087,22 @@ bool TextureClient::IsSharedWithCompositor() const {
 }
 
 void TextureClient::AddFlags(TextureFlags aFlags) {
-  MOZ_ASSERT(
+  MOZ_RELEASE_ASSERT(
       !IsSharedWithCompositor() ||
       ((GetFlags() & TextureFlags::RECYCLE) && !IsAddedToCompositableClient()));
   mFlags |= aFlags;
 }
 
 void TextureClient::RemoveFlags(TextureFlags aFlags) {
-  MOZ_ASSERT(
+  MOZ_RELEASE_ASSERT(
       !IsSharedWithCompositor() ||
       ((GetFlags() & TextureFlags::RECYCLE) && !IsAddedToCompositableClient()));
   mFlags &= ~aFlags;
 }
 
 void TextureClient::RecycleTexture(TextureFlags aFlags) {
-  MOZ_ASSERT(GetFlags() & TextureFlags::RECYCLE);
-  MOZ_ASSERT(!mIsLocked);
+  MOZ_RELEASE_ASSERT(GetFlags() & TextureFlags::RECYCLE);
+  MOZ_RELEASE_ASSERT(!mIsLocked);
 
   mAddedToCompositableClient = false;
   if (mFlags != aFlags) {
@@ -1116,7 +1116,7 @@ void TextureClient::SetAddedToCompositableClient() {
     if (!(GetFlags() & TextureFlags::RECYCLE)) {
       return;
     }
-    MOZ_ASSERT(!mIsLocked);
+    MOZ_RELEASE_ASSERT(!mIsLocked);
     LockActor();
     if (IsValid() && mActor && !mActor->mDestroyed && mActor->CanSend()) {
       mActor->SendRecycleTexture(mFlags);
@@ -1153,7 +1153,7 @@ void TextureClient::CancelWaitForNotifyNotUsed() {
 /* static */
 void TextureClient::TextureClientRecycleCallback(TextureClient* aClient,
                                                  void* aClosure) {
-  MOZ_ASSERT(aClient->GetRecycleAllocator());
+  MOZ_RELEASE_ASSERT(aClient->GetRecycleAllocator());
   aClient->GetRecycleAllocator()->RecycleTextureClient(aClient);
 }
 
@@ -1169,7 +1169,8 @@ void TextureClient::SetRecycleAllocator(
 
 bool TextureClient::InitIPDLActor(CompositableForwarder* aForwarder) {
   RefPtr<TextureForwarder> textureFwd = aForwarder->GetTextureForwarder();
-  MOZ_ASSERT(aForwarder && textureFwd->GetThread() == mAllocator->GetThread());
+  MOZ_RELEASE_ASSERT(aForwarder &&
+                     textureFwd->GetThread() == mAllocator->GetThread());
 
   if (mActor && !mActor->CanSend()) {
     return false;
@@ -1203,8 +1204,8 @@ bool TextureClient::InitIPDLActor(CompositableForwarder* aForwarder) {
     }
     return true;
   }
-  MOZ_ASSERT(!mActor || mActor->mDestroyed,
-             "Cannot use a texture on several IPC channels.");
+  MOZ_RELEASE_ASSERT(!mActor || mActor->mDestroyed,
+                     "Cannot use a texture on several IPC channels.");
 
   SurfaceDescriptor desc;
   if (!ToSurfaceDescriptor(desc)) {
@@ -1256,8 +1257,8 @@ bool TextureClient::InitIPDLActor(CompositableForwarder* aForwarder) {
 bool TextureClient::InitIPDLActor(KnowsCompositor* aKnowsCompositor,
                                   const dom::ContentParentId& aContentId) {
   RefPtr<TextureForwarder> textureFwd = aKnowsCompositor->GetTextureForwarder();
-  MOZ_ASSERT(aKnowsCompositor &&
-             textureFwd->GetThread() == mAllocator->GetThread());
+  MOZ_RELEASE_ASSERT(aKnowsCompositor &&
+                     textureFwd->GetThread() == mAllocator->GetThread());
   if (mActor && !mActor->mDestroyed) {
     CompositableForwarder* currentFwd = mActor->mCompositableForwarder;
 
@@ -1275,8 +1276,8 @@ bool TextureClient::InitIPDLActor(KnowsCompositor* aKnowsCompositor,
     mActor->mTextureForwarder = textureFwd;
     return true;
   }
-  MOZ_ASSERT(!mActor || mActor->mDestroyed,
-             "Cannot use a texture on several IPC channels.");
+  MOZ_RELEASE_ASSERT(!mActor || mActor->mDestroyed,
+                     "Cannot use a texture on several IPC channels.");
 
   SurfaceDescriptor desc;
   if (!ToSurfaceDescriptor(desc)) {
@@ -1506,8 +1507,8 @@ TextureClient::TextureClient(TextureData* aData, TextureFlags aFlags,
 bool TextureClient::CopyToTextureClient(TextureClient* aTarget,
                                         const gfx::IntRect* aRect,
                                         const gfx::IntPoint* aPoint) {
-  MOZ_ASSERT(IsLocked());
-  MOZ_ASSERT(aTarget->IsLocked());
+  MOZ_RELEASE_ASSERT(IsLocked());
+  MOZ_RELEASE_ASSERT(aTarget->IsLocked());
 
   if (!aTarget->CanExposeDrawTarget() || !CanExposeDrawTarget()) {
     return false;
@@ -1739,7 +1740,7 @@ MemoryTextureReadLock::MemoryTextureReadLock() : mReadCount(1) {
 
 MemoryTextureReadLock::~MemoryTextureReadLock() {
   // One read count that is added in constructor.
-  MOZ_ASSERT(mReadCount == 1);
+  MOZ_RELEASE_ASSERT(mReadCount == 1);
   MOZ_COUNT_DTOR(MemoryTextureReadLock);
 }
 
@@ -1760,7 +1761,7 @@ bool MemoryTextureReadLock::ReadLock() {
 
 int32_t MemoryTextureReadLock::ReadUnlock() {
   int32_t readCount = --mReadCount;
-  MOZ_ASSERT(readCount >= 0);
+  MOZ_RELEASE_ASSERT(readCount >= 0);
 
   return readCount;
 }
@@ -1770,8 +1771,8 @@ int32_t MemoryTextureReadLock::GetReadCount() { return mReadCount; }
 ShmemTextureReadLock::ShmemTextureReadLock(LayersIPCChannel* aAllocator)
     : mClientAllocator(aAllocator), mAllocSuccess(false) {
   MOZ_COUNT_CTOR(ShmemTextureReadLock);
-  MOZ_ASSERT(mClientAllocator);
-  MOZ_ASSERT(mClientAllocator->GetTileLockAllocator());
+  MOZ_RELEASE_ASSERT(mClientAllocator);
+  MOZ_RELEASE_ASSERT(mClientAllocator->GetTileLockAllocator());
 #define MOZ_ALIGN_WORD(x) (((x) + 3) & ~3)
   if (mClientAllocator->GetTileLockAllocator()->AllocShmemSection(
           MOZ_ALIGN_WORD(sizeof(ShmReadLockInfo)), &mShmemSection)) {
@@ -1813,7 +1814,7 @@ int32_t ShmemTextureReadLock::ReadUnlock() {
   }
   ShmReadLockInfo* info = GetShmReadLockInfoPtr();
   int32_t readCount = PR_ATOMIC_DECREMENT(&info->readCount);
-  MOZ_ASSERT(readCount >= 0);
+  MOZ_RELEASE_ASSERT(readCount >= 0);
   if (readCount > 0) {
     return readCount;
   }
@@ -1870,7 +1871,7 @@ bool CrossProcessSemaphoreReadLock::Serialize(ReadLockDescriptor& aOutput,
 }
 
 void TextureClient::EnableBlockingReadLock() {
-  MOZ_ASSERT(ShouldReadLock());
+  MOZ_RELEASE_ASSERT(ShouldReadLock());
   if (!mReadLock) {
     mReadLock = new CrossProcessSemaphoreReadLock();
   }
@@ -1878,13 +1879,13 @@ void TextureClient::EnableBlockingReadLock() {
 
 bool UpdateYCbCrTextureClient(TextureClient* aTexture,
                               const PlanarYCbCrData& aData) {
-  MOZ_ASSERT(aTexture);
-  MOZ_ASSERT(aTexture->IsLocked());
-  MOZ_ASSERT(aTexture->GetFormat() == gfx::SurfaceFormat::YUV420,
-             "This textureClient can only use YCbCr data");
-  MOZ_ASSERT(!aTexture->IsImmutable());
-  MOZ_ASSERT(aTexture->IsValid());
-  MOZ_ASSERT(aData.mCbSkip == aData.mCrSkip);
+  MOZ_RELEASE_ASSERT(aTexture);
+  MOZ_RELEASE_ASSERT(aTexture->IsLocked());
+  MOZ_RELEASE_ASSERT(aTexture->GetFormat() == gfx::SurfaceFormat::YUV420,
+                     "This textureClient can only use YCbCr data");
+  MOZ_RELEASE_ASSERT(!aTexture->IsImmutable());
+  MOZ_RELEASE_ASSERT(aTexture->IsValid());
+  MOZ_RELEASE_ASSERT(aData.mCbSkip == aData.mCrSkip);
 
   const auto sizes = aData.GetPlaneSizes();
   if (!sizes) {
@@ -1982,7 +1983,7 @@ bool MappedYCbCrChannelData::CopyInto(MappedYCbCrChannelData& aDst) {
     return true;
   }
 
-  MOZ_ASSERT(bytesPerPixel == 1 || bytesPerPixel == 2);
+  MOZ_RELEASE_ASSERT(bytesPerPixel == 1 || bytesPerPixel == 2);
   // slow path
   if (bytesPerPixel == 1) {
     copyData(aDst.data, aDst, data, *this);

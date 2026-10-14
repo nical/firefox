@@ -78,7 +78,7 @@ YCbCrTextureClientAllocationHelper::YCbCrTextureClientAllocationHelper(
 
 bool YCbCrTextureClientAllocationHelper::IsCompatible(
     TextureClient* aTextureClient) {
-  MOZ_ASSERT(aTextureClient->GetFormat() == gfx::SurfaceFormat::YUV420);
+  MOZ_RELEASE_ASSERT(aTextureClient->GetFormat() == gfx::SurfaceFormat::YUV420);
 
   BufferTextureData* bufferData =
       aTextureClient->GetInternalData()->AsBufferTextureData();
@@ -129,7 +129,7 @@ TextureClientRecycleAllocator::~TextureClientRecycleAllocator() {
   while (!mPooledClients.empty()) {
     mPooledClients.pop();
   }
-  MOZ_ASSERT(mInUseClients.empty());
+  MOZ_RELEASE_ASSERT(mInUseClients.empty());
 }
 
 void TextureClientRecycleAllocator::SetMaxPoolSize(uint32_t aMax) {
@@ -139,7 +139,7 @@ void TextureClientRecycleAllocator::SetMaxPoolSize(uint32_t aMax) {
 already_AddRefed<TextureClient> TextureClientRecycleAllocator::CreateOrRecycle(
     gfx::SurfaceFormat aFormat, gfx::IntSize aSize, BackendSelector aSelector,
     TextureFlags aTextureFlags, TextureAllocationFlags aAllocFlags) {
-  MOZ_ASSERT(!(aTextureFlags & TextureFlags::RECYCLE));
+  MOZ_RELEASE_ASSERT(!(aTextureFlags & TextureFlags::RECYCLE));
   DefaultTextureClientAllocationHelper helper(this, aFormat, aSize, aSelector,
                                               aTextureFlags, aAllocFlags);
   return CreateOrRecycle(helper).unwrapOr(nullptr);
@@ -148,7 +148,7 @@ already_AddRefed<TextureClient> TextureClientRecycleAllocator::CreateOrRecycle(
 Result<already_AddRefed<TextureClient>, nsresult>
 TextureClientRecycleAllocator::CreateOrRecycle(
     ITextureClientAllocationHelper& aHelper) {
-  MOZ_ASSERT(aHelper.mTextureFlags & TextureFlags::RECYCLE);
+  MOZ_RELEASE_ASSERT(aHelper.mTextureFlags & TextureFlags::RECYCLE);
 
   RefPtr<TextureClientHolder> textureHolder;
 
@@ -189,8 +189,8 @@ TextureClientRecycleAllocator::CreateOrRecycle(
 
   {
     MutexAutoLock lock(mLock);
-    MOZ_ASSERT(mInUseClients.find(textureHolder->GetTextureClient()) ==
-               mInUseClients.end());
+    MOZ_RELEASE_ASSERT(mInUseClients.find(textureHolder->GetTextureClient()) ==
+                       mInUseClients.end());
     // Register TextureClient
     mInUseClients[textureHolder->GetTextureClient()] = textureHolder;
   }

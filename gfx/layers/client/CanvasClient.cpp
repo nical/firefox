@@ -26,7 +26,7 @@ namespace mozilla {
 namespace layers {
 
 void CanvasClient::UseTexture(TextureClient* const aTexture) {
-  MOZ_ASSERT(aTexture);
+  MOZ_RELEASE_ASSERT(aTexture);
 
   const auto isClientNonPremult =
       bool(mTextureFlags & TextureFlags::NON_PREMULTIPLIED);

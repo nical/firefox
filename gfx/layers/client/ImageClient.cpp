@@ -134,7 +134,7 @@ already_AddRefed<TextureClient> ImageClient::CreateTextureClientForImage(
 #endif
   } else {
     RefPtr<gfx::SourceSurface> surface = aImage->GetAsSourceSurface();
-    MOZ_ASSERT(surface);
+    MOZ_RELEASE_ASSERT(surface);
     texture = TextureClient::CreateForDrawing(
         aKnowsCompositor, surface->GetFormat(), aImage->GetSize(),
         BackendSelector::Content, TextureFlags::DEFAULT);
@@ -142,7 +142,7 @@ already_AddRefed<TextureClient> ImageClient::CreateTextureClientForImage(
       return nullptr;
     }
 
-    MOZ_ASSERT(texture->CanExposeDrawTarget());
+    MOZ_RELEASE_ASSERT(texture->CanExposeDrawTarget());
 
     if (!texture->Lock(OpenMode::OPEN_WRITE_ONLY)) {
       return nullptr;
@@ -158,7 +158,7 @@ already_AddRefed<TextureClient> ImageClient::CreateTextureClientForImage(
         texture->Unlock();
         return nullptr;
       }
-      MOZ_ASSERT(surface.get());
+      MOZ_RELEASE_ASSERT(surface.get());
       dt->CopySurface(surface, IntRect(IntPoint(), surface->GetSize()),
                       IntPoint());
     }
@@ -207,8 +207,8 @@ bool ImageClientSingle::UpdateImage(ImageContainer* aContainer) {
     for (int32_t i = mBuffers.Length() - 1; i >= 0; --i) {
       if (mBuffers[i].mImageSerial == image->GetSerial()) {
         if (hasTextureClient) {
-          MOZ_ASSERT(image->GetTextureClient(GetForwarder()) ==
-                     mBuffers[i].mTextureClient);
+          MOZ_RELEASE_ASSERT(image->GetTextureClient(GetForwarder()) ==
+                             mBuffers[i].mTextureClient);
         } else {
           texture = mBuffers[i].mTextureClient;
         }
@@ -271,7 +271,7 @@ RefPtr<TextureClient> ImageClientSingle::GetForwardedTexture() {
 }
 
 bool ImageClientSingle::AddTextureClient(TextureClient* aTexture) {
-  MOZ_ASSERT((mTextureFlags & aTexture->GetFlags()) == mTextureFlags);
+  MOZ_RELEASE_ASSERT((mTextureFlags & aTexture->GetFlags()) == mTextureFlags);
   return CompositableClient::AddTextureClient(aTexture);
 }
 

@@ -654,7 +654,7 @@ class TextureClient : public AtomicRefCountedWithFinalize<TextureClient> {
    * forwarding.
    */
   void SetLastFwdTransactionId(uint64_t aTransactionId) {
-    MOZ_ASSERT(mFwdTransactionId <= aTransactionId);
+    MOZ_RELEASE_ASSERT(mFwdTransactionId <= aTransactionId);
     mFwdTransactionId = aTransactionId;
   }
 
@@ -671,8 +671,8 @@ class TextureClient : public AtomicRefCountedWithFinalize<TextureClient> {
       MOZ_ASSERT_UNREACHABLE("No read lock created yet?");
       return 0;
     }
-    MOZ_ASSERT(mReadLock->AsNonBlockingLock(),
-               "Can only check locked for non-blocking locks!");
+    MOZ_RELEASE_ASSERT(mReadLock->AsNonBlockingLock(),
+                       "Can only check locked for non-blocking locks!");
     return mReadLock->AsNonBlockingLock()->GetReadCount();
   }
 
@@ -822,7 +822,7 @@ class MOZ_RAII TextureClientAutoLock {
 #endif
   }
   ~TextureClientAutoLock() {
-    MOZ_ASSERT(mChecked);
+    MOZ_RELEASE_ASSERT(mChecked);
     if (mSucceeded) {
       mTexture->Unlock();
     }
