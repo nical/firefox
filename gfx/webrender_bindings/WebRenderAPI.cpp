@@ -215,8 +215,8 @@ RefPtr<WebRenderAPI::CreatePromise> WebRenderAPI::Create(
     RefPtr<layers::CompositorBridgeParent> aBridge,
     RefPtr<widget::CompositorWidget> aWidget, const wr::WrWindowId& aWindowId,
     LayoutDeviceIntSize aSize, layers::WindowKind aWindowKind) {
-  MOZ_ASSERT(aBridge);
-  MOZ_ASSERT(aWidget);
+  MOZ_RELEASE_ASSERT(aBridge);
+  MOZ_RELEASE_ASSERT(aWidget);
   static_assert(
       sizeof(size_t) == sizeof(uintptr_t),
       "The FFI bindings assume size_t is the same size as uintptr_t!");

@@ -28,7 +28,7 @@ void VRServiceHost::Init(bool aEnableVRProcess) {
 
 /* static */
 VRServiceHost* VRServiceHost::Get() {
-  MOZ_ASSERT(sVRServiceHostSingleton != nullptr);
+  MOZ_RELEASE_ASSERT(sVRServiceHostSingleton != nullptr);
   return sVRServiceHostSingleton;
 }
 

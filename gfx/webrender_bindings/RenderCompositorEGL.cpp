@@ -70,7 +70,7 @@ RenderCompositorEGL::RenderCompositorEGL(
     const RefPtr<widget::CompositorWidget>& aWidget,
     RefPtr<gl::GLContext>&& aGL)
     : RenderCompositor(aWidget), mGL(aGL), mEGLSurface(EGL_NO_SURFACE) {
-  MOZ_ASSERT(mGL);
+  MOZ_RELEASE_ASSERT(mGL);
   LOG("RenderCompositorEGL::RenderCompositorEGL()");
 #ifdef MOZ_WAYLAND
   if (widget::GdkIsWaylandDisplay()) {
