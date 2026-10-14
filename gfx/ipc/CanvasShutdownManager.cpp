@@ -180,7 +180,7 @@ void CanvasShutdownManager::OnRemoteCanvasReset(
 }
 
 /* static */ void CanvasShutdownManager::OnCompositorManagerRestored() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   class RestoreRunnable final : public dom::MainThreadWorkerRunnable {
    public:

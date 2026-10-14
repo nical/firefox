@@ -150,7 +150,7 @@ void GPUProcessHost::OnProcessLaunchError(const base::LaunchError aError) {
 }
 
 void GPUProcessHost::OnChannelConnected(base::ProcessId peer_pid) {
-  MOZ_ASSERT(!NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(!NS_IsMainThread());
 
   GeckoChildProcessHost::OnChannelConnected(peer_pid);
 
@@ -216,7 +216,7 @@ void GPUProcessHost::InitAfterConnect(bool aSucceeded) {
 }
 
 void GPUProcessHost::OnAsyncInitComplete() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   if (mLaunchPhase == LaunchPhase::Connected) {
     mLaunchPhase = LaunchPhase::Complete;
     if (mListener) {
@@ -298,7 +298,7 @@ void GPUProcessHost::OnChannelClosed() {
 }
 
 void GPUProcessHost::KillHard(bool aGenerateMinidump) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   if (mGPUChild && aGenerateMinidump) {
     mGPUChild->GeneratePairedMinidump();

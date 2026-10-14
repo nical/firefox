@@ -30,7 +30,7 @@ constinit CanvasManagerParent::ManagerSet CanvasManagerParent::sManagers;
     Endpoint<PCanvasManagerParent>&& aEndpoint,
     layers::SharedSurfacesHolder* aSharedSurfacesHolder,
     const dom::ContentParentId& aContentId) {
-  MOZ_ASSERT(layers::CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(layers::CompositorThreadHolder::IsInCompositorThread());
 
   auto manager =
       MakeRefPtr<CanvasManagerParent>(aSharedSurfacesHolder, aContentId);
@@ -45,7 +45,7 @@ constinit CanvasManagerParent::ManagerSet CanvasManagerParent::sManagers;
 }
 
 /* static */ void CanvasManagerParent::Shutdown() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIThread> owningThread =
       gfx::CanvasRenderThread::GetCanvasRenderThread();
@@ -91,7 +91,7 @@ constinit CanvasManagerParent::ManagerSet CanvasManagerParent::sManagers;
 }
 
 /* static */ void CanvasManagerParent::DisableRemoteCanvasInternal() {
-  MOZ_ASSERT(CanvasRenderThread::IsInCanvasRenderThread());
+  MOZ_RELEASE_ASSERT(CanvasRenderThread::IsInCanvasRenderThread());
 
   AutoTArray<RefPtr<layers::CanvasTranslator>, 16> actors;
   for (const auto& manager : sManagers) {

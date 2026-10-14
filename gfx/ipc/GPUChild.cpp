@@ -178,7 +178,7 @@ mozilla::ipc::IPCResult GPUChild::RecvGraphicsError(const nsCString& aError) {
 
 mozilla::ipc::IPCResult GPUChild::RecvCreateVRProcess() {
   // Make sure create VR process at the main process
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
   if (StaticPrefs::dom_vr_process_enabled_AtStartup() &&
       StaticPrefs::dom_vr_enabled()) {
     VRProcessManager::Initialize();
@@ -195,7 +195,7 @@ mozilla::ipc::IPCResult GPUChild::RecvCreateVRProcess() {
 
 mozilla::ipc::IPCResult GPUChild::RecvShutdownVRProcess() {
   // Make sure stopping VR process at the main process
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
   if (StaticPrefs::dom_vr_process_enabled_AtStartup() &&
       StaticPrefs::dom_vr_enabled()) {
     VRProcessManager::Shutdown();

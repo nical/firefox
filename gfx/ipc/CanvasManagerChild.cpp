@@ -78,7 +78,7 @@ void CanvasManagerChild::Destroy() {
 
 /* static */ bool CanvasManagerChild::CreateParent(
     ipc::Endpoint<PCanvasManagerParent>&& aEndpoint) {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   CompositorManagerChild* manager = CompositorManagerChild::GetInstance();
   if (!manager || !manager->CanSend()) {

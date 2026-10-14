@@ -121,7 +121,7 @@ GPUParent* GPUParent::GetSingleton() {
 
 /* static */ bool GPUParent::MaybeFlushMemory() {
 #if defined(XP_WIN) && !defined(HAVE_64BIT_BUILD)
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   if (!XRE_IsGPUProcess()) {
     return false;
   }

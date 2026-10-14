@@ -86,7 +86,7 @@ static StaticAutoPtr<GPUProcessManager> sSingleton;
 GPUProcessManager* GPUProcessManager::Get() { return sSingleton; }
 
 void GPUProcessManager::Initialize() {
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
   sSingleton = new GPUProcessManager();
 }
 
@@ -301,7 +301,7 @@ nsresult GPUProcessManager::LaunchGPUProcess() {
 }
 
 bool GPUProcessManager::IsGPUProcessLaunching() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   return !!mProcess && !mGPUChild;
 }
 
@@ -405,7 +405,7 @@ bool GPUProcessManager::IsGPUReady() const {
 }
 
 nsresult GPUProcessManager::EnsureGPUReady() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   // Common case is we already have a GPU process.
   if (mProcess && mProcess->IsConnected() && mGPUChild) {
@@ -900,7 +900,7 @@ void GPUProcessManager::NotifyDeviceReset(DeviceResetReason aReason,
     return;
   }
 
-  MOZ_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
   if (auto* gpm = GPUProcessManager::Get()) {
     gpm->OnInProcessDeviceReset(aReason, aPlace);
   } else {
@@ -1059,7 +1059,7 @@ void GPUProcessManager::OnProcessUnexpectedShutdown(GPUProcessHost* aHost) {
 }
 
 void GPUProcessManager::HandleProcessLost() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   // The shutdown and restart sequence for the GPU process is as follows:
   //
@@ -1709,7 +1709,7 @@ LayersId GPUProcessManager::AllocateLayerTreeId() {
   // from those of other trees, external image ids and async image pipeline
   // ids. Its pipeline uses handle 0 and GetTemporaryWebRenderPipelineId uses
   // handle 1.
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   uint64_t layerTreeId = AllocateNamespace();
   layerTreeId <<= 32;
   return LayersId{layerTreeId};
@@ -1726,7 +1726,7 @@ wr::PipelineId GetTemporaryWebRenderPipelineId(wr::PipelineId aMainPipeline) {
 }
 
 uint32_t GPUProcessManager::AllocateNamespace() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   return ++mNextNamespace;
 }
 

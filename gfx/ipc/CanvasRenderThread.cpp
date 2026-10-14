@@ -38,7 +38,7 @@ CanvasRenderThread::~CanvasRenderThread() = default;
 
 // static
 void CanvasRenderThread::Start() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!sCanvasRenderThread);
 
 #ifdef DEBUG
@@ -110,12 +110,12 @@ void CanvasRenderThread::Start() {
 
 // static
 void CanvasRenderThread::Shutdown() {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 
   // It is possible we never initialized this thread in the parent process,
   // because we used the GPU process instead.
   if (!sCanvasRenderThread) {
-    MOZ_ASSERT(XRE_IsParentProcess());
+    MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
     return;
   }
 

@@ -13,16 +13,16 @@ CompositorWidgetVsyncObserver::CompositorWidgetVsyncObserver(
     RefPtr<VsyncBridgeChild> aVsyncBridge,
     const layers::LayersId& aRootLayerTreeId)
     : mVsyncBridge(aVsyncBridge), mRootLayerTreeId(aRootLayerTreeId) {
-  MOZ_ASSERT(XRE_IsParentProcess());
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(NS_IsMainThread());
 }
 
 CompositorWidgetVsyncObserver::~CompositorWidgetVsyncObserver() = default;
 
 void CompositorWidgetVsyncObserver::NotifyVsync(const VsyncEvent& aVsync) {
   // Vsync notifications should only arrive on the vsync thread.
-  MOZ_ASSERT(XRE_IsParentProcess());
-  MOZ_ASSERT(!NS_IsMainThread());
+  MOZ_RELEASE_ASSERT(XRE_IsParentProcess());
+  MOZ_RELEASE_ASSERT(!NS_IsMainThread());
 
   mVsyncBridge->NotifyVsync(aVsync, mRootLayerTreeId);
 }
