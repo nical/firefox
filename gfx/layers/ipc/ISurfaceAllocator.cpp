@@ -54,7 +54,7 @@ const uint32_t sSupportedBlockSize = 4;
 FixedSizeSmallShmemSectionAllocator::FixedSizeSmallShmemSectionAllocator(
     LayersIPCChannel* aShmProvider)
     : mShmProvider(aShmProvider) {
-  MOZ_ASSERT(mShmProvider);
+  MOZ_RELEASE_ASSERT(mShmProvider);
 }
 
 FixedSizeSmallShmemSectionAllocator::~FixedSizeSmallShmemSectionAllocator() {
@@ -70,8 +70,8 @@ bool FixedSizeSmallShmemSectionAllocator::AllocShmemSection(
   // For now we only support sizes of 4. If we want to support different sizes
   // some more complicated bookkeeping should be added.
   NS_ASSERT_OWNINGTHREAD(FixedSizeSmallShmemSectionAllocator);
-  MOZ_ASSERT(aSize == sSupportedBlockSize);
-  MOZ_ASSERT(aShmemSection);
+  MOZ_RELEASE_ASSERT(aSize == sSupportedBlockSize);
+  MOZ_RELEASE_ASSERT(aShmemSection);
 
   if (!IPCOpen()) {
     gfxCriticalError() << "Attempt to allocate a ShmemSection after shutdown.";
@@ -89,7 +89,7 @@ bool FixedSizeSmallShmemSectionAllocator::AllocShmemSection(
             sizeof(ShmemSectionHeapHeader) <
         sShmemPageSize) {
       shmem = mUsedShmems[i];
-      MOZ_ASSERT(mUsedShmems[i].IsWritable());
+      MOZ_RELEASE_ASSERT(mUsedShmems[i].IsWritable());
       break;
     }
   }
@@ -108,7 +108,7 @@ bool FixedSizeSmallShmemSectionAllocator::AllocShmemSection(
     shmem = tmp;
   }
 
-  MOZ_ASSERT(shmem.IsWritable());
+  MOZ_RELEASE_ASSERT(shmem.IsWritable());
 
   ShmemSectionHeapHeader* header = shmem.get<ShmemSectionHeapHeader>();
   uint8_t* heap = shmem.get<uint8_t>() + sizeof(ShmemSectionHeapHeader);
@@ -125,8 +125,8 @@ bool FixedSizeSmallShmemSectionAllocator::AllocShmemSection(
       }
       heap += allocationSize;
     }
-    MOZ_ASSERT(allocHeader && allocHeader->mStatus == STATUS_FREED);
-    MOZ_ASSERT(allocHeader->mSize == sSupportedBlockSize);
+    MOZ_RELEASE_ASSERT(allocHeader && allocHeader->mStatus == STATUS_FREED);
+    MOZ_RELEASE_ASSERT(allocHeader->mSize == sSupportedBlockSize);
   } else {
     heap += header->mTotalBlocks * allocationSize;
 
@@ -135,7 +135,7 @@ bool FixedSizeSmallShmemSectionAllocator::AllocShmemSection(
     allocHeader->mSize = aSize;
   }
 
-  MOZ_ASSERT(allocHeader);
+  MOZ_RELEASE_ASSERT(allocHeader);
   header->mAllocatedBlocks++;
   allocHeader->mStatus = STATUS_ALLOCATED;
 
@@ -154,8 +154,9 @@ bool FixedSizeSmallShmemSectionAllocator::AllocShmemSection(
 
 void FixedSizeSmallShmemSectionAllocator::FreeShmemSection(
     mozilla::layers::ShmemSection& aShmemSection) {
-  MOZ_ASSERT(aShmemSection.size() == sSupportedBlockSize);
-  MOZ_ASSERT(aShmemSection.offset() < sShmemPageSize - sSupportedBlockSize);
+  MOZ_RELEASE_ASSERT(aShmemSection.size() == sSupportedBlockSize);
+  MOZ_RELEASE_ASSERT(aShmemSection.offset() <
+                     sShmemPageSize - sSupportedBlockSize);
 
   if (!aShmemSection.shmem().IsWritable()) {
     return;
@@ -169,12 +170,12 @@ void FixedSizeSmallShmemSectionAllocator::FreeShmemSection(
           aShmemSection.shmem().get<char>() + aShmemSection.offset() -
           headerSize);
 
-  MOZ_ASSERT(allocHeader->mSize == aShmemSection.size());
+  MOZ_RELEASE_ASSERT(allocHeader->mSize == aShmemSection.size());
 
   DebugOnly<bool> success =
       allocHeader->mStatus.compareExchange(STATUS_ALLOCATED, STATUS_FREED);
   // If this fails something really weird is going on.
-  MOZ_ASSERT(success);
+  MOZ_RELEASE_ASSERT(success);
 
   ShmemSectionHeapHeader* header =
       aShmemSection.shmem().get<ShmemSectionHeapHeader>();

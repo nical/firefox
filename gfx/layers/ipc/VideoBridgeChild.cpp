@@ -35,7 +35,7 @@ void VideoBridgeChild::StartupForGPUProcess() {
 /* static */
 void VideoBridgeChild::Open(Endpoint<PVideoBridgeChild>&& aEndpoint) {
   StaticMutexAutoLock lock(sVideoBridgeLock);
-  MOZ_ASSERT(!sVideoBridge || !sVideoBridge->CanSend());
+  MOZ_RELEASE_ASSERT(!sVideoBridge || !sVideoBridge->CanSend());
   RefPtr<VideoBridgeChild> oldBridge = sVideoBridge.get();
   sVideoBridge = new VideoBridgeChild();
 
@@ -106,7 +106,7 @@ bool VideoBridgeChild::AllocUnsafeShmem(size_t aSize, ipc::Shmem* aShmem) {
 }
 
 bool VideoBridgeChild::AllocShmem(size_t aSize, ipc::Shmem* aShmem) {
-  MOZ_ASSERT(CanSend());
+  MOZ_RELEASE_ASSERT(CanSend());
   return PVideoBridgeChild::AllocShmem(aSize, aShmem);
 }
 
@@ -183,7 +183,7 @@ already_AddRefed<PTextureChild> VideoBridgeChild::CreateTexture(
     LayersBackend aLayersBackend, TextureFlags aFlags,
     const dom::ContentParentId& aContentId, uint64_t aSerial,
     wr::MaybeExternalImageId& aExternalImageId) {
-  MOZ_ASSERT(CanSend());
+  MOZ_RELEASE_ASSERT(CanSend());
   RefPtr actor = TextureClient::CreateIPDLActor();
   if (!SendPTextureConstructor(actor, aSharedData, std::move(aReadLock),
                                aLayersBackend, aFlags, aContentId, aSerial)) {

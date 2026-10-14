@@ -81,7 +81,7 @@ void VideoBridgeParent::Bind(Endpoint<PVideoBridgeParent>&& aEndpoint) {
 /* static */
 RefPtr<VideoBridgeParent> VideoBridgeParent::GetSingleton(
     const Maybe<VideoBridgeSource>& aSource) {
-  MOZ_ASSERT(aSource.isSome());
+  MOZ_RELEASE_ASSERT(aSource.isSome());
   auto videoBridgeFromProcess = sVideoBridgeFromProcess.Lock();
   switch (aSource.value()) {
     case VideoBridgeSource::RddProcess:
@@ -105,7 +105,7 @@ already_AddRefed<TextureHost> VideoBridgeParent::LookupTextureAsync(
     return nullptr;
   }
 
-  MOZ_ASSERT(mCompositorThreadHolder->IsInThread());
+  MOZ_RELEASE_ASSERT(mCompositorThreadHolder->IsInThread());
 
   const auto i = mTextureMap.find(aSerial);
   if (NS_WARN_IF(i == mTextureMap.end())) {
@@ -235,7 +235,7 @@ void VideoBridgeParent::ShutdownInternal() {
 
 /* static */
 void VideoBridgeParent::UnregisterExternalImages() {
-  MOZ_ASSERT(sVideoBridgeParentShutDown);
+  MOZ_RELEASE_ASSERT(sVideoBridgeParentShutDown);
 
   auto videoBridgeFromProcess = sVideoBridgeFromProcess.Lock();
   for (auto& bridgeParent : *videoBridgeFromProcess) {

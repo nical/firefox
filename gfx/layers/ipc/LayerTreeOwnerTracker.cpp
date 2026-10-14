@@ -22,7 +22,7 @@ LayerTreeOwnerTracker::LayerTreeOwnerTracker()
     : mLayerIdsLock("LayerTreeOwnerTrackerLock") {}
 
 void LayerTreeOwnerTracker::Initialize() {
-  MOZ_ASSERT(!sSingleton);
+  MOZ_RELEASE_ASSERT(!sSingleton);
   sSingleton = new LayerTreeOwnerTracker();
 }
 
@@ -38,7 +38,7 @@ void LayerTreeOwnerTracker::Map(LayersId aLayersId,
 
   // Add the mapping to the list
   const auto i = mLayerIds.insert({aLayersId, aProcessId});
-  MOZ_ASSERT(i.second, "Mapping already used layers ID!");
+  MOZ_RELEASE_ASSERT(i.second, "Mapping already used layers ID!");
   (void)i;
 }
 
