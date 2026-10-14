@@ -88,13 +88,13 @@ wr::ExternalImageId AsyncImagePipelineManager::GetNextExternalImageId() {
 }
 
 void AsyncImagePipelineManager::SetWillGenerateFrame() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   mWillGenerateFrame = true;
 }
 
 bool AsyncImagePipelineManager::GetAndResetWillGenerateFrame() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   bool ret = mWillGenerateFrame;
   mWillGenerateFrame = false;
@@ -667,7 +667,7 @@ void AsyncImagePipelineManager::NotifyPipelinesUpdated(
     RefPtr<const wr::WebRenderPipelineInfo> aInfo,
     wr::RenderedFrameId aLatestFrameId,
     wr::RenderedFrameId aLastCompletedFrameId, RefPtr<Fence>&& aReadFence) {
-  MOZ_ASSERT(wr::RenderThread::IsInRenderThread());
+  MOZ_RELEASE_ASSERT(wr::RenderThread::IsInRenderThread());
   MOZ_ASSERT(mLastCompletedFrameId <= aLastCompletedFrameId.mId);
   MOZ_ASSERT(aLatestFrameId.IsValid());
 
@@ -692,7 +692,7 @@ void AsyncImagePipelineManager::NotifyPipelinesUpdated(
 }
 
 void AsyncImagePipelineManager::ProcessPipelineUpdates() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   if (mDestroyed) {
     return;

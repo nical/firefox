@@ -529,7 +529,7 @@ layers::AsyncImagePipelineOps* WebRenderAPI::GetPendingAsyncImagePipelineOps(
 
 bool WebRenderAPI::CheckIsRemoteTextureReady(
     layers::RemoteTextureInfoList* aList, const TimeStamp& aTimeStamp) {
-  MOZ_ASSERT(layers::CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(layers::CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(aList);
 
   RefPtr<WebRenderAPI> self = this;
@@ -575,7 +575,7 @@ bool WebRenderAPI::CheckIsRemoteTextureReady(
 
 void WebRenderAPI::WaitRemoteTextureReady(
     layers::RemoteTextureInfoList* aList) {
-  MOZ_ASSERT(layers::CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(layers::CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(aList);
 
   while (!aList->mList.empty()) {

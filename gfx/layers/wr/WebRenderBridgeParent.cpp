@@ -410,7 +410,7 @@ already_AddRefed<WebRenderBridgeParent> WebRenderBridgeParent::CreateDestroyed(
 }
 
 bool WebRenderBridgeParent::EnsureInitialized() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   if (mDestroyed) {
     return false;
   }
@@ -423,7 +423,7 @@ bool WebRenderBridgeParent::EnsureInitialized() {
 void WebRenderBridgeParent::FinishInitialization(
     RefPtr<wr::WebRenderAPI>&& aApi,
     RefPtr<AsyncImagePipelineManager>&& aImageMgr) {
-  MOZ_ASSERT(NS_IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(NS_IsInCompositorThread());
   MOZ_ASSERT(IsRootWebRenderBridgeParent());
   MOZ_ASSERT(mLateInit.isNothing());
   LOG("WebRenderBridgeParent::FinishInitialization() PipelineId %" PRIx64
@@ -473,7 +473,7 @@ void WebRenderBridgeParent::FinishInitializationError(nsCString&& aError) {
 }
 
 already_AddRefed<wr::WebRenderAPI> WebRenderBridgeParent::GetWebRenderAPI() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   if (EnsureInitialized()) {
     return do_AddRef(mLateInit->mApi);
   }
@@ -481,7 +481,7 @@ already_AddRefed<wr::WebRenderAPI> WebRenderBridgeParent::GetWebRenderAPI() {
 }
 
 AsyncImagePipelineManager* WebRenderBridgeParent::AsyncImageManager() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   if (EnsureInitialized()) {
     return mLateInit->mAsyncImageManager;
   }
@@ -489,7 +489,7 @@ AsyncImagePipelineManager* WebRenderBridgeParent::AsyncImageManager() {
 }
 
 CompositorVsyncScheduler* WebRenderBridgeParent::CompositorScheduler() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   if (EnsureInitialized()) {
     return mLateInit->mCompositorScheduler.get();
   }
@@ -1935,7 +1935,7 @@ bool WebRenderBridgeParent::ProcessWebRenderParentCommands(
 }
 
 void WebRenderBridgeParent::FlushSceneBuilds() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   // Since we are sending transactions through the scene builder thread, we need
   // to block until all the inflight transactions have been processed. This
@@ -1959,7 +1959,7 @@ void WebRenderBridgeParent::FlushSceneBuilds() {
 }
 
 void WebRenderBridgeParent::FlushFrameGeneration(wr::RenderReasons aReasons) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(IsRootWebRenderBridgeParent());  // This function is only useful on
                                               // the root WRBP
 
@@ -1975,7 +1975,7 @@ void WebRenderBridgeParent::FlushFrameGeneration(wr::RenderReasons aReasons) {
 }
 
 void WebRenderBridgeParent::FlushFramePresentation() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   // This sends a message to the render backend thread to send a message
   // to the renderer thread, and waits for that message to be processed. So
@@ -3371,7 +3371,7 @@ WebRenderBridgeParent::GetWebRenderBridgeParentRef() {
 WebRenderBridgeParentRef::WebRenderBridgeParentRef(
     WebRenderBridgeParent* aWebRenderBridge)
     : mWebRenderBridge(aWebRenderBridge) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(mWebRenderBridge);
 }
 
@@ -3380,12 +3380,12 @@ RefPtr<WebRenderBridgeParent> WebRenderBridgeParentRef::WrBridge() {
 }
 
 void WebRenderBridgeParentRef::Clear() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   mWebRenderBridge = nullptr;
 }
 
 WebRenderBridgeParentRef::~WebRenderBridgeParentRef() {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+  MOZ_RELEASE_ASSERT(CompositorThreadHolder::IsInCompositorThread());
   MOZ_ASSERT(!mWebRenderBridge);
 }
 
