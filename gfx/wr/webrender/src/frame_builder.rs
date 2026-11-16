@@ -822,6 +822,15 @@ impl FrameBuilder {
 
         profile.set(profiler::PATH_FILLS, scratch.primitive.frame.path_prims.len());
 
+        let svgfe_task_pixels: usize = render_tasks.tasks.iter()
+            .filter(|task| matches!(task.kind, RenderTaskKind::SVGFENode(..)))
+            .map(|task| {
+                let size = task.location.size();
+                size.width as usize * size.height as usize
+            })
+            .sum();
+        profile.set(profiler::SVGFE_TASK_PIXELS, svgfe_task_pixels);
+
         let mut passes = frame_memory.new_vec();
         let mut has_texture_cache_tasks = false;
         let mut prim_headers = PrimitiveHeaders::new(&frame_memory);

@@ -1,0 +1,157 @@
+# A filtered element clipped by its own clip chain must render the same
+# whether or not its filter nodes have subregions far larger than the clip.
+---
+root:
+  items:
+    - type: clip
+      id: 1
+      bounds: [35, 35, 60, 60]
+    - type: clip
+      id: 2
+      bounds: [195, 35, 61, 61]
+    - type: clip
+      id: 3
+      bounds: [35, 195, 62, 62]
+    - type: clip
+      id: 4
+      bounds: [195, 195, 63, 63]
+    - type: stacking-context
+      bounds: [40, 40, 40, 40]
+      clip-chain: [1]
+      filters:
+        - svgfe: SourceGraphic
+        - svgfe: SourceAlpha
+        - svgfe: gaussianblur
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          std_deviation_x: 4
+          std_deviation_y: 4
+          in: 1
+        - svgfe: offset
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          offset: [3, 3]
+          in: 2
+        - svgfe: flood
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          color: [0, 0, 0, 0.6]
+        - svgfe: compositein
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          in: 4
+          in2: 3
+        - svgfe: compositeover
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          in: 0
+          in2: 5
+      items:
+        - type: rect
+          bounds: [48, 48, 19, 16]
+          color: [40, 90, 220, 1]
+    - type: stacking-context
+      bounds: [200, 40, 40, 40]
+      clip-chain: [2]
+      filters:
+        - svgfe: SourceGraphic
+        - svgfe: SourceAlpha
+        - svgfe: gaussianblur
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          std_deviation_x: 4
+          std_deviation_y: 4
+          in: 1
+        - svgfe: offset
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          offset: [3, 3]
+          in: 2
+        - svgfe: flood
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          color: [0, 0, 0, 0.6]
+        - svgfe: compositein
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          in: 4
+          in2: 3
+        - svgfe: compositeover
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          in: 0
+          in2: 5
+      items:
+        - type: rect
+          bounds: [208, 48, 19, 16]
+          color: [40, 90, 220, 1]
+    - type: stacking-context
+      bounds: [40, 200, 40, 40]
+      clip-chain: [3]
+      filters:
+        - svgfe: SourceGraphic
+        - svgfe: SourceAlpha
+        - svgfe: gaussianblur
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          std_deviation_x: 4
+          std_deviation_y: 4
+          in: 1
+        - svgfe: offset
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          offset: [3, 3]
+          in: 2
+        - svgfe: flood
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          color: [0, 0, 0, 0.6]
+        - svgfe: compositein
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          in: 4
+          in2: 3
+        - svgfe: compositeover
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          in: 0
+          in2: 5
+      items:
+        - type: rect
+          bounds: [48, 208, 19, 16]
+          color: [40, 90, 220, 1]
+    - type: stacking-context
+      bounds: [200, 200, 40, 40]
+      clip-chain: [4]
+      filters:
+        - svgfe: SourceGraphic
+        - svgfe: SourceAlpha
+        - svgfe: gaussianblur
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          std_deviation_x: 4
+          std_deviation_y: 4
+          in: 1
+        - svgfe: offset
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          offset: [3, 3]
+          in: 2
+        - svgfe: flood
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          color: [0, 0, 0, 0.6]
+        - svgfe: compositein
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          in: 4
+          in2: 3
+        - svgfe: compositeover
+          linear: false
+          subregion: [0, 0, 1080, 1080]
+          in: 0
+          in2: 5
+      items:
+        - type: rect
+          bounds: [208, 208, 19, 16]
+          color: [40, 90, 220, 1]

@@ -150,6 +150,7 @@ impl<'a> TestHarness<'a> {
         self.test_backdrop_cross_slice_uncovered();
         self.test_backdrop_cross_slice_move_together();
         self.test_backdrop_own_slice_compositor_surfaces();
+        self.test_svgfe_task_sizes();
 
         // Run manifest-based tests
         let manifest_path = PathBuf::from("invalidation/invalidation.list");
@@ -673,14 +674,37 @@ impl<'a> TestHarness<'a> {
     /// Render a YAML file by name (relative to invalidation/), and return the
     /// number of compositor surfaces promoted to overlays in the frame.
     fn render_yaml_overlays(&mut self, filename: &str) -> u32 {
+        self.render_yaml_counter(filename, "Compositor surface overlays")
+    }
+
+    /// Render a YAML file by name (relative to invalidation/), and return the
+    /// value of a frame build profiler counter, or zero if it was not set.
+    fn render_yaml_counter(&mut self, filename: &str, counter_name: &str) -> u32 {
         self.wrench.renderer.take_frame_build_profiles();
         self.render_yaml(filename);
         let profiles = self.wrench.renderer.take_frame_build_profiles();
         let counters = profiles.last().expect("bug: no frame was built");
         counters
             .iter()
-            .find(|counter| counter.name == "Compositor surface overlays")
+            .find(|counter| counter.name == counter_name)
             .map_or(0, |counter| counter.value as u32)
+    }
+
+    fn test_svgfe_task_sizes(&mut self) {
+        // Both files draw four small filtered elements whose filter nodes
+        // have subregions of 1080x1080 or larger. Sized to the area the
+        // output reads, the render tasks of the filter nodes add up to well
+        // under 250k pixels. Sized to the node subregions, each element
+        // allocates a task of over a million pixels.
+        const LIMIT: u32 = 250_000;
+        for name in ["svgfe_flood_large_subregion", "svgfe_clipped_large_subregion"] {
+            let pixels = self.render_yaml_counter(name, "SVG filter task pixels");
+            assert!(
+                pixels > 0 && pixels < LIMIT,
+                "Ensure the SVG filter tasks of {} are sized to the area the output needs: {} pixels",
+                name, pixels,
+            );
+        }
     }
 
     /// Render `test` and `reference`, and assert that their pixels at `probe`

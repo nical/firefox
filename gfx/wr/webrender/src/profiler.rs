@@ -338,8 +338,11 @@ pub const INTERNED_PATHS: usize = 145;
 pub const PATH_FILLS: usize = 146;
 /// Path clip mask sub-tasks rasterized this frame.
 pub const PATH_CLIPS: usize = 147;
+/// Total area in pixels of the render tasks created for SVG filter graph nodes
+/// this frame.
+pub const SVGFE_TASK_PIXELS: usize = 148;
 
-pub const NUM_PROFILER_EVENTS: usize = 148;
+pub const NUM_PROFILER_EVENTS: usize = 149;
 
 pub struct Profiler {
     counters: Vec<Counter>,
@@ -569,6 +572,7 @@ impl Profiler {
             int("Interned paths", "", INTERNED_PATHS, Expected::none()),
             int("Path fills", "", PATH_FILLS, Expected::none()),
             int("Path clips", "", PATH_CLIPS, expected(0..200)),
+            int("SVG filter task pixels", "px", SVGFE_TASK_PIXELS, Expected::none()),
         ];
 
         let mut counters = Vec::with_capacity(profile_counters.len());
