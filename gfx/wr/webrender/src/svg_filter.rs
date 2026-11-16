@@ -1517,6 +1517,17 @@ pub fn get_coverage_source_svgfe(
     filters: &[(FilterGraphNode, FilterGraphOp)],
     surface_rect: LayoutRect,
 ) -> LayoutRect {
+    get_coverage_needed_svgfe(filters, surface_rect).0
+}
+
+/// Same walk as get_coverage_source_svgfe, and also returns for each node the
+/// subregion of its output that is needed to draw surface_rect, clipped to the
+/// node's own subregion. The array is indexed by buffer id and is empty for
+/// nodes that do not contribute to the output.
+pub fn get_coverage_needed_svgfe(
+    filters: &[(FilterGraphNode, FilterGraphOp)],
+    surface_rect: LayoutRect,
+) -> (LayoutRect, [LayoutRect; SVGFE_GRAPH_MAX]) {
 
     // The value of BUFFER_LIMIT here must be the same as in
     // scene_building.rs, or we'll hit asserts here.
@@ -1530,6 +1541,8 @@ pub fn get_coverage_source_svgfe(
     // propagate that to its inputs when it is iterated.
     let mut source_subregion = LayoutRect::zero();
     let mut subregion_by_buffer_id: [LayoutRect; BUFFER_LIMIT] =
+    [LayoutRect::zero(); BUFFER_LIMIT];
+    let mut needed_subregion_by_buffer_id: [LayoutRect; BUFFER_LIMIT] =
     [LayoutRect::zero(); BUFFER_LIMIT];
     let final_buffer_id = filters.len() - 1;
     assert!(final_buffer_id < BUFFER_LIMIT, "BUFFER_LIMIT must be the same in frame building and scene building");
@@ -1547,6 +1560,7 @@ pub fn get_coverage_source_svgfe(
         used_subregion = used_subregion
             .intersection(&full_subregion)
             .unwrap_or(LayoutRect::zero());
+        needed_subregion_by_buffer_id[node_buffer_id] = used_subregion;
         if !used_subregion.is_empty() {
             for input in &node.inputs {
                 let input_subregion = LayoutRect::new(
@@ -1586,5 +1600,5 @@ pub fn get_coverage_source_svgfe(
 
     // Note that this can be zero if SourceGraphic/SourceAlpha is not used
     // in this graph.
-    source_subregion
+    (source_subregion, needed_subregion_by_buffer_id)
 }

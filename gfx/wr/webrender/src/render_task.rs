@@ -15,7 +15,7 @@ use crate::profiler::{add_text_marker};
 use crate::spatial_tree::SpatialNodeIndex;
 use crate::gpu_types::{BorderInstance, UvRectKind, BlurEdgeMode, ClipSpace};
 use crate::internal_types::{CacheTextureId, FastHashMap, TextureSource, Swizzle};
-use crate::svg_filter::{FilterGraphNode, FilterGraphOp, FilterGraphPictureReference, SVGFE_CONVOLVE_VALUES_LIMIT};
+use crate::svg_filter::{get_coverage_needed_svgfe, FilterGraphNode, FilterGraphOp, FilterGraphPictureReference, SVGFE_CONVOLVE_VALUES_LIMIT};
 use crate::picture::ResolvedSurfaceTexture;
 use crate::tile_cache::MAX_SURFACE_SIZE;
 use crate::transform::GpuTransformId;
@@ -1114,6 +1114,40 @@ impl RenderTask {
             }
         }
 
+        // Work out how much of each node's output is needed to produce the
+        // target subregion, so that nodes whose subregion is much larger than
+        // what the output samples (floods, tiles, offsets of large regions
+        // and so on) don't allocate tasks for pixels that are never read.
+        // The needed regions are computed in subregion space and mapped to
+        // the same device space as the node subregions below, with a margin
+        // that covers rounding of the paddings and offsets.
+        let needed_by_buffer_id: Option<[LayoutRect; BUFFER_LIMIT]> =
+            if subregion_to_device_scale_x > 0.0 && subregion_to_device_scale_y > 0.0 {
+                let target_in_subregion_space = target_subregion
+                    .translate(LayoutVector2D::new(
+                        -subregion_to_device_offset_x,
+                        -subregion_to_device_offset_y))
+                    .scale(
+                        1.0 / subregion_to_device_scale_x,
+                        1.0 / subregion_to_device_scale_y);
+                let (_, mut needed) = get_coverage_needed_svgfe(
+                    filter_nodes, target_in_subregion_space);
+                for rect in needed.iter_mut().take(filter_nodes.len()) {
+                    if !rect.is_empty() {
+                        *rect = rect
+                            .scale(subregion_to_device_scale_x, subregion_to_device_scale_y)
+                            .translate(LayoutVector2D::new(
+                                subregion_to_device_offset_x,
+                                subregion_to_device_offset_y))
+                            .inflate(1.0, 1.0)
+                            .round_out();
+                    }
+                }
+                Some(needed)
+            } else {
+                None
+            };
+
         // Iterate the filter nodes and create tasks
         let mut made_dependency_on_source = false;
         for (filter_index, (filter_node, op)) in filter_nodes.iter().enumerate() {
@@ -1594,6 +1628,12 @@ impl RenderTask {
                     // node subregion.
                     used_subregion = full_subregion;
                 },
+            }
+
+            if let Some(needed) = &needed_by_buffer_id {
+                used_subregion = used_subregion
+                    .intersection(&needed[filter_index])
+                    .unwrap_or(LayoutRect::zero());
             }
 
             add_text_marker(
