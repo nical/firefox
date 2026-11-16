@@ -96,6 +96,7 @@ pub fn prepare_picture(
     scratch: &mut PrimitiveScratchBuffer,
     tile_caches: &mut FastHashMap<SliceId, Box<TileCacheInstance>>,
     prim_instances: &mut Vec<PrimitiveInstance>,
+    prim_coverage_rect: Option<PictureRect>,
 ) -> Option<storage::Index<PictureScratch>> {
     // Only successfully-prepared pictures are cached here, so a cache hit is
     // always a valid scratch handle. Pictures that yielded no scratch are not
@@ -116,6 +117,7 @@ pub fn prepare_picture(
         data_stores,
         scratch,
         tile_caches,
+        prim_coverage_rect,
     ) else {
         return None;
     };
@@ -345,6 +347,7 @@ fn prepare_prim_for_render(
             scratch,
             tile_caches,
             prim_instances,
+            Some(scratch.frame.draw(draw_index).clip_chain.pic_coverage_rect),
         ) else {
             return;
         };

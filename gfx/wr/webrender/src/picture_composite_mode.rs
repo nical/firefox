@@ -979,6 +979,9 @@ fn map_svgfe_subregions(
     }).collect()
 }
 
+/// `prim_coverage_rect` is the visible part of the picture primitive that draws
+/// this surface, in the parent surface's picture space. An SVG filter graph only
+/// produces the part of its output that lands in it.
 pub fn get_surface_rects(
     surface_index: SurfaceIndex,
     composite_mode: &PictureCompositeMode,
@@ -987,6 +990,7 @@ pub fn get_surface_rects(
     spatial_tree: &SpatialTree,
     max_surface_size: f32,
     force_scissor_rect: bool,
+    prim_coverage_rect: Option<PictureRect>,
 ) -> Option<SurfaceAllocInfo> {
     let parent_surface = &surfaces[parent_surface_index.0];
 
@@ -1021,9 +1025,18 @@ pub fn get_surface_rects(
 
             let prim_subregion = get_coverage_target_svgfe(filters, surface.clipped_local_rect.cast_unit());
 
+            let mut svgfe_clip_rect = local_clip_rect;
+            if let Some(prim_coverage_rect) = prim_coverage_rect {
+                if let Some(prim_clip) = local_to_parent.unmap(&prim_coverage_rect) {
+                    svgfe_clip_rect = prim_clip
+                        .intersection(&svgfe_clip_rect)
+                        .unwrap_or(PictureRect::zero());
+                }
+            }
+
             let visible_subregion: LayoutRect =
                 prim_subregion.cast_unit()
-                .intersection(&local_clip_rect)
+                .intersection(&svgfe_clip_rect)
                 .unwrap_or(PictureRect::zero())
                 .cast_unit();
 

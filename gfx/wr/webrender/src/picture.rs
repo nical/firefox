@@ -690,6 +690,7 @@ impl PictureInstance {
         data_stores: &DataStores,
         scratch: &mut PrimitiveScratchBuffer,
         tile_caches: &mut FastHashMap<SliceId, Box<TileCacheInstance>>,
+        prim_coverage_rect: Option<PictureRect>,
     ) -> Option<(PictureContext, PictureState, storage::Index<PictureScratch>)> {
         let mut picture_scratch = PictureScratch::empty();
 
@@ -745,6 +746,16 @@ impl PictureInstance {
 
                 let max_surface_size = frame_context.max_surface_size() as f32;
 
+                // Snapshots are sampled as textures and backdrop chains are
+                // captured separately, so neither can rely on the picture
+                // primitive's visible area.
+                let in_backdrop_chain = frame_state.surfaces[raster_config.surface_index.0].in_backdrop_chain;
+                let prim_coverage_rect = if self.snapshot.is_some() || in_backdrop_chain {
+                    None
+                } else {
+                    prim_coverage_rect
+                };
+
                 let surface_rects = match get_surface_rects(
                     raster_config.surface_index,
                     &raster_config.composite_mode,
@@ -753,6 +764,7 @@ impl PictureInstance {
                     frame_context.spatial_tree,
                     max_surface_size,
                     force_scissor_rect,
+                    prim_coverage_rect,
                 ) {
                     Some(rects) => rects,
                     None => return None,
@@ -2925,6 +2937,7 @@ fn test_large_surface_scale_1() {
         &spatial_tree,
         MAX_SURFACE_SIZE as f32,
         false,
+        None,
     );
 }
 
@@ -3047,6 +3060,7 @@ fn test_drop_filter_dirty_region_outside_prim() {
         &spatial_tree,
         MAX_SURFACE_SIZE as f32,
         false,
+        None,
     ).expect("No surface rect");
     assert_eq!(info.task_size, DeviceIntSize::new(1200, 900));
 
@@ -3063,6 +3077,7 @@ fn test_drop_filter_dirty_region_outside_prim() {
         &spatial_tree,
         MAX_SURFACE_SIZE as f32,
         false,
+        None,
     ).expect("No surface rect");
     assert_eq!(info.task_size, DeviceIntSize::new(432, 578));
 }
@@ -3170,6 +3185,7 @@ fn test_drop_filter_partial_dirty_content_inflate() {
         &spatial_tree,
         MAX_SURFACE_SIZE as f32,
         false,
+        None,
     ).expect("No surface rect");
 
     // With the fix, the image-content side of required_local_rect is inflated

@@ -658,7 +658,8 @@ impl FrameBuilder {
                 dl_stores,
                 &mut scratch.primitive,
                 tile_caches,
-                &mut scene.prim_instances
+                &mut scene.prim_instances,
+                None,
             );
         }
 
@@ -696,7 +697,8 @@ impl FrameBuilder {
                 dl_stores,
                 &mut scratch.primitive,
                 tile_caches,
-                &mut scene.prim_instances
+                &mut scene.prim_instances,
+                None,
             );
         }
 
